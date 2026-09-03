@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #000814;
+  color: #eef4ff;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass morphism */
+.glass {
+  background: rgba(3, 28, 57, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(178, 200, 237, 0.12);
+}
+.glass-gold {
+  background: rgba(3, 28, 57, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(233, 195, 73, 0.2);
+}
+
+/* Typography helpers */
+.font-serif { font-family: 'Playfair Display', Georgia, serif; }
+.font-mono  { font-family: 'JetBrains Mono', monospace; }
+
+/* Gold glow text */
+.gold-glow { text-shadow: 0 0 24px rgba(233,195,73,0.55); }
+
+/* Buttons */
+.btn-gold {
+  background: #e9c349;
+  color: #000d20;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+.btn-gold:hover:not(:disabled) {
+  background: #fef08a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(233,195,73,0.35);
+}
+.btn-gold:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Letter paper */
+.letter-paper {
+  background: linear-gradient(135deg, #fbf9f0 0%, #f5eddb 60%, #efe5cb 100%);
+  color: #2c1d11;
+}
+
+/* Envelope card */
+.envelope-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.envelope-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+}
+
+/* Toggle switch */
+.toggle-wrap { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+.toggle-input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  width: 44px; height: 24px;
+  background: rgba(178,200,237,0.15);
+  border-radius: 12px;
+  transition: background 0.3s;
+  position: relative;
+}
+.toggle-input:checked ~ .toggle-track { background: #e9c349; }
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.3s;
+  pointer-events: none;
+}
+.toggle-input:checked ~ .toggle-track .toggle-thumb { transform: translateX(20px); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #000814; }
+::-webkit-scrollbar-thumb { background: #e9c349; border-radius: 4px; }
+
+/* Shake animation for wrong PIN */
+.do-shake { animation: shake 0.5s ease-in-out; }
