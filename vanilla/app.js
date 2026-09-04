@@ -107,6 +107,9 @@ function freshLetter() {
     createdAt: new Date().toISOString(),
   };
 }
+function normalizeData(d) {
+  return { ...DEFAULT_DATA, ...d, letters: d.letters || [], gallery: d.gallery || [] };
+}
 function shareUrl() {
   return `${window.location.origin}${window.location.pathname}?gift=main`;
 }
@@ -927,8 +930,8 @@ async function unlock() {
   await signInOwner(); // required by Firestore rules before any save
   const d = await loadData();
   if (d) {
-    state.owner.data = d;
-    state.owner.cityForm = { fromCity: d.fromCity, toCity: d.toCity };
+    state.owner.data = normalizeData(d);
+    state.owner.cityForm = { fromCity: state.owner.data.fromCity, toCity: state.owner.data.toCity };
     render();
   }
 }
@@ -1106,7 +1109,7 @@ async function init() {
     state.recipient.loading = true;
     render();
     const d = await loadData();
-    if (d) state.recipient.data = d;
+    if (d) state.recipient.data = normalizeData(d);
     else state.recipient.error = true;
     state.recipient.loading = false;
     render();
