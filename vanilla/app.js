@@ -9,6 +9,7 @@ import { loadData, saveData, signInOwner } from './db.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
 const OWNER_PIN = '5425';
+const OWNER_COORDS = { lat: 32.4945, lng: 74.5229 }; // Sialkot, Pakistan
 
 const DEFAULT_DATA = {
   letters: [], gallery: [],
@@ -110,6 +111,56 @@ function freshLetter() {
 function normalizeData(d) {
   return { ...DEFAULT_DATA, ...d, letters: d.letters || [], gallery: d.gallery || [] };
 }
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function reverseGeocodeCity(lat, lon) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`);
+    const data = await res.json();
+    const a = data.address || {};
+    return a.city || a.town || a.village || a.county || a.state || null;
+  } catch (e) {
+    console.error('❌ Reverse geocode error:', e);
+    return null;
+  }
+}
+
+// Asks the recipient to share their live location, computes distance from the
+// owner's fixed coordinates, and reverse-geocodes a city name. Falls back to
+// the stored static distance/city (state.recipient.live stays 'idle'/'denied').
+function requestLiveLocation() {
+  if (!navigator.geolocation) {
+    state.recipient.live = { status: 'unavailable' };
+    return;
+  }
+  state.recipient.live = { status: 'requesting' };
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      const distanceKm = haversineKm(OWNER_COORDS.lat, OWNER_COORDS.lng, latitude, longitude);
+      state.recipient.live = { status: 'ready', distanceKm, cityName: null };
+      render();
+      const city = await reverseGeocodeCity(latitude, longitude);
+      if (state.recipient.live.status === 'ready') {
+        state.recipient.live.cityName = city;
+        render();
+      }
+    },
+    () => {
+      state.recipient.live = { status: 'denied' };
+      render();
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+  );
+}
+
 function shareUrl() {
   return `${window.location.origin}${window.location.pathname}?gift=main`;
 }
@@ -147,7 +198,7 @@ function moonStarsHTML() {
 const state = {
   isRecipient: false,
   giftParam: null,
-  recipient: { loading: false, error: false, data: null, tab: 'letters' },
+  recipient: { loading: false, error: false, data: null, tab: 'letters', live: { status: 'idle' } },
   pinOk: false,
   pin: { digits: ['', '', '', ''], error: false, shaking: false },
   pinFocusIndex: null,
@@ -289,6 +340,10 @@ function recipientErrorHTML() {
 function recipientViewHTML() {
   const d = state.recipient.data;
   const tab = state.recipient.tab;
+  const live = state.recipient.live || { status: 'idle' };
+  const isLive = live.status === 'ready';
+  const toLabel = isLive && live.cityName ? live.cityName : d.toCity;
+  const kmLabel = isLive ? Math.round(live.distanceKm).toLocaleString() : Number(d.distanceKm).toLocaleString();
   const tabs = [
     { id: 'letters', label: `Letters (${d.letters.filter(l => l.isPublished).length})`, emoji: '💌' },
     { id: 'gallery', label: `Gallery (${d.gallery.length})`, emoji: '📷' },
@@ -304,12 +359,13 @@ function recipientViewHTML() {
         <p class="font-serif" style="color:#b2c8ed;font-size:15px;font-style:italic;margin-bottom:20px;">From your Dino, written under the same sky ✈️</p>
         <div class="glass-gold font-mono" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:999px;font-size:13px;color:#b2c8ed;">
           <span style="color:#e9c349;">📍</span>${esc(d.fromCity)}
-          <span style="color:#e9c349;">✈️</span>${esc(d.toCity)}
+          <span style="color:#e9c349;">✈️</span>${esc(toLabel)}
           <span style="color:rgba(178,200,237,0.35);">·</span>
-          <span style="color:#e9c349;font-weight:700;">${Number(d.distanceKm).toLocaleString()} km</span>
+          <span style="color:#e9c349;font-weight:700;">${kmLabel} km</span>
           <span style="color:rgba(178,200,237,0.35);">·</span>
           <span style="font-style:italic;opacity:0.6;">same sky 🌙</span>
         </div>
+        ${isLive ? `<p class="font-mono" style="margin-top:8px;font-size:10px;color:rgba(74,222,128,0.7);">📡 live distance from your current location</p>` : ''}
       </div>
 
       <div class="glass-gold" style="border-radius:20px;padding:6px;display:flex;gap:6px;margin-bottom:24px;">
@@ -1113,6 +1169,7 @@ async function init() {
     else state.recipient.error = true;
     state.recipient.loading = false;
     render();
+    if (state.recipient.data) requestLiveLocation();
   } else {
     state.pinFocusIndex = 0;
     render();
