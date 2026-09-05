@@ -7,9 +7,10 @@
 //   - Panther opens link → reads "main" from Firestore
 //   - Works on ANY device. No localStorage. No account state.
 // ═══════════════════════════════════════════════════════════════
-import { db, auth } from './firebase-config.js';
+import { db, auth, storage } from './firebase-config.js';
 import { doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
 import { signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
 
 const DOC_ID = 'main';
 
@@ -38,6 +39,16 @@ export async function loadData() {
     console.error('❌ Firestore load error:', e);
     return null;
   }
+}
+
+// Background music files are too big for a Firestore document (1MB doc
+// limit), so they go to Firebase Storage instead — only the small download
+// URL gets stored in Firestore.
+export async function uploadMusicFile(file) {
+  const path = `music/${Date.now()}-${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
 }
 
 export async function saveData(data) {

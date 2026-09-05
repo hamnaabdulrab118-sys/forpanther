@@ -5,7 +5,7 @@
 //   Share URL   → yoursite.com/?gift=main
 //   Panther opens URL → app reads "main" from Firestore → shows letters
 // ═══════════════════════════════════════════════════════════════════════
-import { loadData, saveData, signInOwner } from './db.js';
+import { loadData, saveData, signInOwner, uploadMusicFile } from './db.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
 const OWNER_PIN = '5425';
@@ -103,6 +103,7 @@ function freshLetter() {
     hasPhoto: false, photoUrl: '', photoCaption: '',
     hasAudio: false, audioTitle: '',
     hasVideo: false, videoUrl: '', videoTitle: '',
+    hasMusic: false, musicUrl: '', musicTitle: '',
     stickers: [],
     isPublished: true,
     createdAt: new Date().toISOString(),
@@ -209,7 +210,7 @@ const state = {
     cityForm: { fromCity: 'Sialkot', toCity: 'Ormara' },
   },
   editingLetter: undefined, // undefined = closed, null = new, object = editing
-  editor: { step: 1, draft: null },
+  editor: { step: 1, draft: null, musicUploading: false },
   openLetterId: null,
   newPhoto: { url: '', caption: '', location: '' },
   lightbox: null, // { idx }
@@ -260,6 +261,8 @@ function afterRender(view) {
     const box = root.querySelector('#moon-messages');
     if (box) box.scrollTop = box.scrollHeight;
   }
+  const musicEl = root.querySelector('#letter-music-player');
+  if (musicEl) musicEl.play().catch(() => {}); // autoplay can be blocked; controls stay visible either way
 }
 
 // ── PIN screen ───────────────────────────────────────────────────────────
@@ -412,6 +415,7 @@ function envelopeCardHTML(letter, isOwner) {
           ${letter.hasPhoto ? `<span class="font-mono" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(125,211,252,0.1);color:#7dd3fc;">📷 photo</span>` : ''}
           ${letter.hasAudio ? `<span class="font-mono" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(251,113,133,0.1);color:#fb7185;">🎙️ audio</span>` : ''}
           ${letter.hasVideo ? `<span class="font-mono" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(167,139,250,0.1);color:#a78bfa;">🎬 video</span>` : ''}
+          ${letter.hasMusic ? `<span class="font-mono" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(74,222,128,0.1);color:#4ade80;">🎵 music</span>` : ''}
           ${letter.stickers.length > 0 ? `<span style="font-size:13px;">${letter.stickers.slice(0, 4).join('')}</span>` : ''}
         </div>
       </div>
@@ -469,6 +473,11 @@ function letterModalOverlayHTML(letters) {
         <div style="margin-top:20px;border-radius:16px;overflow:hidden;">
           <video src="${esc(letter.videoUrl)}" controls style="width:100%;display:block;"></video>
           ${letter.videoTitle ? `<p class="font-mono" style="text-align:center;font-size:11px;margin-top:8px;opacity:0.5;">${esc(letter.videoTitle)}</p>` : ''}
+        </div>` : ''}
+      ${letter.hasMusic && letter.musicUrl ? `
+        <div style="margin-top:20px;padding:14px 18px;background:rgba(74,222,128,0.08);border-radius:16px;border:1px solid rgba(74,222,128,0.15);">
+          <p class="font-mono" style="font-size:10px;color:#4ade80;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">🎵 ${esc(letter.musicTitle || 'Background Music')}</p>
+          <audio id="letter-music-player" src="${esc(letter.musicUrl)}" controls loop autoplay style="width:100%;height:36px;"></audio>
         </div>` : ''}
       <div style="margin-top:28px;padding-top:16px;border-top:1px solid rgba(44,29,17,0.08);display:flex;justify-content:space-between;">
         <span class="font-mono" style="font-size:11px;opacity:0.3;">🦖 From Dino</span>
@@ -632,8 +641,8 @@ function letterEditorHTML() {
         <input type="text" value="${esc(l.signOff)}" data-scope="editor" data-field="signOff" placeholder="Forever yours, Dino 🖤" class="font-serif" style="${EDITOR_INPUT_STYLE}" />
       </div>
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Date stamp:</p>
-        <input type="text" value="${esc(l.date)}" data-scope="editor" data-field="date" placeholder="September 3, 2026" class="font-serif" style="${EDITOR_INPUT_STYLE}" />
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Date stamp (auto):</p>
+        <p class="font-serif" style="color:#b2c8ed;font-size:14px;padding:12px 16px;">${esc(l.date)}</p>
       </div>
       <div>
         <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Your letter:</p>
@@ -678,6 +687,21 @@ function letterEditorHTML() {
               <input type="file" accept="video/*" style="display:none;" data-action="editor-file" data-field="videoUrl" />
             </label>
             <input type="text" value="${esc(l.videoTitle)}" data-scope="editor" data-field="videoTitle" placeholder="Video title..." class="font-mono" style="${EDITOR_INPUT_STYLE}font-size:13px;" />
+          </div>` : ''}
+      </div>
+      <div class="glass-gold" style="border-radius:24px;padding:22px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${l.hasMusic ? 18 : 0}px;">
+          <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:22px;">🎵</span><span class="font-mono" style="font-size:14px;font-weight:600;color:#4ade80;">Background Music</span></div>
+          ${toggleHTML(l.hasMusic, 'hasMusic')}
+        </div>
+        ${l.hasMusic ? `
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0;border-radius:14px;border:1px dashed rgba(74,222,128,0.3);color:${state.editor.musicUploading ? 'rgba(74,222,128,0.4)' : '#4ade80'};font-size:13px;cursor:${state.editor.musicUploading ? 'default' : 'pointer'};">
+              ${state.editor.musicUploading ? '⏳ Uploading...' : '📁 Upload music (up to ~5 min)'}
+              <input type="file" accept="audio/*" style="display:none;" data-action="editor-music-file" ${state.editor.musicUploading ? 'disabled' : ''} />
+            </label>
+            ${l.musicUrl ? `<audio controls src="${esc(l.musicUrl)}" style="width:100%;height:36px;"></audio>` : ''}
+            <input type="text" value="${esc(l.musicTitle)}" data-scope="editor" data-field="musicTitle" placeholder="Song title (optional)..." class="font-mono" style="${EDITOR_INPUT_STYLE}font-size:13px;" />
           </div>` : ''}
       </div>
     </div>`;
@@ -725,6 +749,11 @@ function letterEditorHTML() {
               ${l.photoCaption ? `<p class="font-serif" style="text-align:center;font-size:11px;color:#78716c;margin-top:8px;font-style:italic;">"${esc(l.photoCaption)}"</p>` : ''}
             </div>
           </div>` : ''}
+        ${l.hasMusic && l.musicUrl ? `
+          <div style="margin-top:20px;">
+            <p class="font-mono" style="font-size:10px;opacity:0.4;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:6px;">🎵 ${esc(l.musicTitle || 'Background Music')}</p>
+            <audio controls src="${esc(l.musicUrl)}" style="width:100%;height:36px;"></audio>
+          </div>` : ''}
       </div>
       <button data-action="editor-save" class="btn-gold" style="width:100%;padding:18px 0;border-radius:22px;font-size:15px;border:none;cursor:pointer;letter-spacing:0.04em;">✓ Save & Publish Letter</button>
     </div>`;
@@ -755,6 +784,7 @@ function letterEditorHTML() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:28px;">
         <button data-action="editor-back" class="font-mono" style="display:flex;align-items:center;gap:6px;padding:12px 20px;border-radius:16px;background:rgba(178,200,237,0.06);border:1px solid rgba(178,200,237,0.1);color:#b2c8ed;font-size:13px;cursor:pointer;">‹ ${step > 1 ? 'Back' : 'Cancel'}</button>
         <div style="display:flex;gap:10px;">
+          ${isEditing ? `<button data-action="editor-delete" class="font-mono" style="padding:12px 18px;border-radius:16px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#f87171;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">🗑 Delete</button>` : ''}
           <button data-action="editor-save" class="font-mono" style="padding:12px 18px;border-radius:16px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);color:#4ade80;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">✓ Save</button>
           ${step < EDITOR_STEPS.length ? `<button data-action="editor-next" class="btn-gold font-mono" style="display:flex;align-items:center;gap:6px;padding:12px 20px;border-radius:16px;font-size:13px;border:none;cursor:pointer;">Next ›</button>` : ''}
         </div>
@@ -1059,6 +1089,14 @@ function handleClick(e) {
     case 'update-cities': updateCities(); break;
     case 'editor-cancel': cancelEditor(); break;
     case 'editor-save': saveLetterFromEditor(); break;
+    case 'editor-delete': {
+      if (!window.confirm('Delete this letter? This cannot be undone.')) break;
+      const id = state.editor.draft.id;
+      state.editingLetter = undefined;
+      state.editor.draft = null;
+      deleteLetter(id);
+      break;
+    }
     case 'editor-step': state.editor.step = Number(el.dataset.step); render(); break;
     case 'editor-back':
       if (state.editor.step > 1) { state.editor.step--; render(); }
@@ -1128,6 +1166,25 @@ function handleChange(e) {
       }
     };
     reader.readAsDataURL(file);
+  } else if (action === 'editor-music-file') {
+    const file = el.files && el.files[0];
+    if (!file) return;
+    state.editor.musicUploading = true;
+    render();
+    uploadMusicFile(file)
+      .then(url => {
+        if (!state.editor.draft) return; // editor was closed mid-upload
+        state.editor.draft.musicUrl = url;
+        if (!state.editor.draft.musicTitle) state.editor.draft.musicTitle = file.name.replace(/\.[^.]+$/, '');
+      })
+      .catch(err => {
+        console.error('❌ Music upload error:', err);
+        window.alert('Music upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+      })
+      .finally(() => {
+        state.editor.musicUploading = false;
+        render();
+      });
   }
 }
 
