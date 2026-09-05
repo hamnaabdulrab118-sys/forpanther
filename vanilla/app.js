@@ -17,7 +17,8 @@ const DEFAULT_DATA = {
   distanceKm: 730, distanceMiles: 454,
   isPublished: false,
   moonMessages: [],
-  hiddenTabs: { letters: false, gallery: false, moon: false },
+  hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false },
+  bouquet: { flowers: [], wrapping: 'gold', note: '', background: { type: 'preset', value: 'night' } },
 };
 
 const LABELS = [
@@ -50,6 +51,47 @@ const ENVELOPE_CARD_COLORS = {
   lavender: { envelope: '#0d0020', border: '#c4b5fd', wax: '#a78bfa', badge: 'rgba(196,181,253,0.12)', badgeText: '#c4b5fd' },
 };
 
+const MAX_FLOWERS = 12;
+
+const FLOWER_OPTIONS = [
+  { id: 'rose', emoji: '🌹', label: 'Rose' },
+  { id: 'tulip', emoji: '🌷', label: 'Tulip' },
+  { id: 'sunflower', emoji: '🌻', label: 'Sunflower' },
+  { id: 'daisy', emoji: '🌼', label: 'Daisy' },
+  { id: 'hibiscus', emoji: '🌺', label: 'Hibiscus' },
+  { id: 'blossom', emoji: '🌸', label: 'Blossom' },
+  { id: 'hyacinth', emoji: '🪻', label: 'Hyacinth' },
+  { id: 'lotus', emoji: '🪷', label: 'Lotus' },
+  { id: 'rosette', emoji: '🏵️', label: 'Rosette' },
+  { id: 'mixed', emoji: '💐', label: 'Mixed' },
+];
+
+const WRAPPING_OPTIONS = [
+  { id: 'gold', label: 'Gold', color: '#e9c349' },
+  { id: 'rose', label: 'Rose', color: '#fda4af' },
+  { id: 'sky', label: 'Sky', color: '#7dd3fc' },
+  { id: 'sage', label: 'Sage', color: '#86efac' },
+  { id: 'lavender', label: 'Lavender', color: '#c4b5fd' },
+  { id: 'kraft', label: 'Kraft', color: '#c9a876' },
+  { id: 'white', label: 'White', color: '#f5f5f0' },
+];
+
+const BACKGROUND_PRESETS = [
+  { id: 'night', label: 'Night Sky', css: 'linear-gradient(180deg,#000005 0%,#000814 40%,#000d20 100%)' },
+  { id: 'sunset', label: 'Sunset', css: 'linear-gradient(180deg,#2d1b4e 0%,#7c3f5c 50%,#e08a5f 100%)' },
+  { id: 'dawn', label: 'Dawn', css: 'linear-gradient(180deg,#1e3a5f 0%,#4a6fa5 50%,#f4a988 100%)' },
+  { id: 'garden', label: 'Garden', css: 'linear-gradient(180deg,#0d2818 0%,#1a4d2e 60%,#2d6a3e 100%)' },
+];
+
+// Hand-tuned offsets (relative to the top of the wrapping) for up to 12 flowers,
+// growing outward in a fan so the cluster still looks intentional at any count.
+const BOUQUET_POSITIONS = [
+  { x: 0, y: 0, r: 0 }, { x: -24, y: 4, r: -12 }, { x: 24, y: 4, r: 12 },
+  { x: -14, y: -16, r: -6 }, { x: 14, y: -16, r: 6 }, { x: -42, y: 16, r: -22 },
+  { x: 42, y: 16, r: 22 }, { x: 0, y: -30, r: 0 }, { x: -32, y: -8, r: -16 },
+  { x: 32, y: -8, r: 16 }, { x: -58, y: 30, r: -30 }, { x: 58, y: 30, r: 30 },
+];
+
 const MOON_REPLIES = [
   "I can feel your love travelling across every mile to him tonight 🌙",
   "He looks up at me every night. I think he's thinking of you right now ✨",
@@ -75,6 +117,7 @@ const OWNER_TABS = [
   { id: 'home', icon: '🏠', label: 'Home' },
   { id: 'letters', icon: '✉️', label: 'Letters' },
   { id: 'gallery', icon: '🖼️', label: 'Gallery' },
+  { id: 'bouquet', icon: '💐', label: 'Bouquet' },
   { id: 'moon', icon: '🌙', label: 'Moon' },
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ];
@@ -115,6 +158,7 @@ function normalizeData(d) {
     ...DEFAULT_DATA, ...d,
     letters: d.letters || [], gallery: d.gallery || [], moonMessages: d.moonMessages || [],
     hiddenTabs: { ...DEFAULT_DATA.hiddenTabs, ...(d.hiddenTabs || {}) },
+    bouquet: { ...DEFAULT_DATA.bouquet, ...(d.bouquet || {}), flowers: (d.bouquet && d.bouquet.flowers) || [] },
   };
 }
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -168,7 +212,7 @@ function requestLiveLocation() {
 }
 
 function firstVisibleRecipientTab(data) {
-  const order = ['letters', 'gallery', 'moon'];
+  const order = ['letters', 'gallery', 'bouquet', 'moon'];
   return order.find(t => !data.hiddenTabs[t]) || 'letters';
 }
 function shareUrl() {
@@ -224,6 +268,7 @@ const state = {
   newPhoto: { url: '', caption: '', location: '' },
   lightbox: null, // { idx }
   moonEditor: { dinoDraft: '', moonDraft: '', editingId: null, editingText: '' },
+  bouquetForm: { note: '', bgUrl: '' },
 };
 
 const root = document.getElementById('root');
@@ -233,10 +278,13 @@ function computeView() {
   if (state.isRecipient && state.recipient.loading) return 'recipient-loading';
   if (state.isRecipient && state.recipient.error) return 'recipient-error';
   if (state.isRecipient && state.recipient.data) {
-    return state.recipient.tab === 'moon' ? 'moon' : 'recipient';
+    if (state.recipient.tab === 'moon') return 'moon';
+    if (state.recipient.tab === 'bouquet') return 'bouquet';
+    return 'recipient';
   }
   if (!state.pinOk) return 'pin';
   if (state.owner.tab === 'moon') return 'moon';
+  if (state.owner.tab === 'bouquet') return 'bouquet';
   if (state.editingLetter !== undefined) return 'editor';
   return 'owner';
 }
@@ -250,6 +298,7 @@ function render() {
     case 'recipient': html = recipientViewHTML(); break;
     case 'pin': html = pinScreenHTML(); break;
     case 'moon': html = (state.isRecipient && state.recipient.data) ? moonScriptViewHTML() : moonScriptEditorHTML(); break;
+    case 'bouquet': html = (state.isRecipient && state.recipient.data) ? bouquetViewHTML() : bouquetBuilderHTML(); break;
     case 'editor': html = letterEditorHTML(); break;
     case 'owner': html = ownerStudioHTML(); break;
   }
@@ -356,6 +405,7 @@ function recipientViewHTML() {
   const tabs = [
     { id: 'letters', label: `Letters (${d.letters.filter(l => l.isPublished).length})`, emoji: '💌' },
     { id: 'gallery', label: `Gallery (${d.gallery.length})`, emoji: '📷' },
+    { id: 'bouquet', label: 'Bouquet', emoji: '💐' },
     { id: 'moon', label: 'Talk to Moon', emoji: '🌙' },
   ].filter(t => !d.hiddenTabs[t.id]);
   return `
@@ -625,6 +675,114 @@ function moonScriptViewHTML() {
   </div>`;
 }
 
+// ── Bouquet builder / view ──────────────────────────────────────────────────
+function bouquetBackgroundStyle(bg) {
+  if (bg && bg.type === 'custom' && bg.value) {
+    return `background-image:url('${esc(bg.value)}');background-size:cover;background-position:center;`;
+  }
+  const preset = BACKGROUND_PRESETS.find(p => p.id === (bg && bg.value)) || BACKGROUND_PRESETS[0];
+  return `background:${preset.css};`;
+}
+
+function flowerClusterHTML(bouquet, editable) {
+  const wrap = WRAPPING_OPTIONS.find(w => w.id === bouquet.wrapping) || WRAPPING_OPTIONS[0];
+  const flowerHTML = bouquet.flowers.map((fid, i) => {
+    const f = FLOWER_OPTIONS.find(x => x.id === fid) || FLOWER_OPTIONS[0];
+    const pos = BOUQUET_POSITIONS[i] || { x: 0, y: 0, r: 0 };
+    return `<span ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
+      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${130 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);font-size:38px;${editable ? 'cursor:pointer;' : ''}">${f.emoji}</span>`;
+  }).join('');
+  return `
+  <div style="position:relative;width:260px;height:260px;margin:0 auto;">
+    ${flowerHTML}
+    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:170px;height:130px;background:${wrap.color};clip-path:polygon(50% 0%, 100% 100%, 0% 100%);box-shadow:0 12px 30px rgba(0,0,0,0.4);"></div>
+    ${bouquet.note ? `
+      <div style="position:absolute;right:0;bottom:36px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
+        <p class="font-serif" style="font-size:11px;color:#2c1d11;font-style:italic;">"${esc(bouquet.note)}"</p>
+      </div>` : ''}
+  </div>`;
+}
+
+function bouquetBuilderHTML() {
+  const bq = state.owner.data.bouquet;
+  const full = bq.flowers.length >= MAX_FLOWERS;
+  return `
+  <div style="min-height:100vh;position:relative;overflow:hidden;${bouquetBackgroundStyle(bq.background)}">
+    <div style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+      <div>
+        <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;text-shadow:0 2px 8px rgba(0,0,0,0.6);">Build a Bouquet 💐</h2>
+        <p class="font-mono" style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px;">${bq.flowers.length}/${MAX_FLOWERS} flowers</p>
+      </div>
+      <button data-action="bouquet-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
+    </div>
+
+    <div style="position:relative;z-index:10;padding:20px 0 30px;">
+      ${flowerClusterHTML(bq, true)}
+      <p class="font-mono" style="text-align:center;color:rgba(255,255,255,0.55);font-size:11px;margin-top:8px;">${bq.flowers.length ? 'Tap a flower to remove it' : 'Add flowers below'}</p>
+    </div>
+
+    <div style="position:relative;z-index:10;max-width:600px;margin:0 auto;padding:0 16px 110px;display:flex;flex-direction:column;gap:16px;">
+      <div class="glass-gold" style="border-radius:24px;padding:20px;">
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Flowers</p>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
+          ${FLOWER_OPTIONS.map(f => `
+            <button data-action="bouquet-add-flower" data-flower="${f.id}" ${full ? 'disabled' : ''} title="${f.label}"
+              style="font-size:26px;padding:10px 0;border-radius:14px;border:none;cursor:${full ? 'not-allowed' : 'pointer'};background:rgba(178,200,237,0.08);opacity:${full ? 0.4 : 1};">${f.emoji}</button>`).join('')}
+        </div>
+      </div>
+
+      <div class="glass-gold" style="border-radius:24px;padding:20px;">
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Wrapping</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          ${WRAPPING_OPTIONS.map(w => `
+            <button data-action="bouquet-pick-wrapping" data-wrap="${w.id}" title="${w.label}"
+              style="width:40px;height:40px;border-radius:50%;background:${w.color};border:none;cursor:pointer;
+              outline:${bq.wrapping === w.id ? '3px solid white' : '3px solid transparent'};outline-offset:3px;
+              transform:${bq.wrapping === w.id ? 'scale(1.2)' : 'scale(1)'};transition:all 0.2s;"></button>`).join('')}
+        </div>
+      </div>
+
+      <div class="glass-gold" style="border-radius:24px;padding:20px;">
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Mini Note</p>
+        <input type="text" value="${esc(state.bouquetForm.note)}" data-scope="bouquetForm" data-field="note" placeholder="A little note to tuck in..." class="font-serif" style="${OWNER_INPUT_STYLE}margin-bottom:10px;" />
+        <button data-action="bouquet-save-note" class="btn-gold font-mono" style="width:100%;padding:10px 0;border-radius:14px;border:none;cursor:pointer;font-size:12px;">Save Note</button>
+      </div>
+
+      <div class="glass-gold" style="border-radius:24px;padding:20px;">
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Background</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+          ${BACKGROUND_PRESETS.map(p => `
+            <button data-action="bouquet-pick-bg-preset" data-bg="${p.id}" title="${p.label}"
+              style="width:52px;height:36px;border-radius:10px;background:${p.css};border:none;cursor:pointer;
+              outline:${bq.background.type === 'preset' && bq.background.value === p.id ? '3px solid white' : '3px solid transparent'};outline-offset:2px;"></button>`).join('')}
+        </div>
+        <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-bottom:8px;">Or paste your own background image URL:</p>
+        <div style="display:flex;gap:10px;">
+          <input type="text" value="${esc(state.bouquetForm.bgUrl)}" data-scope="bouquetForm" data-field="bgUrl" placeholder="https://..." class="font-mono" style="${OWNER_INPUT_STYLE}flex:1;font-size:12px;" />
+          <button data-action="bouquet-set-bg-custom" class="font-mono" style="padding:10px 16px;border-radius:14px;border:1px solid rgba(233,195,73,0.25);background:rgba(233,195,73,0.1);color:#e9c349;cursor:pointer;font-size:12px;white-space:nowrap;">Use this</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bouquetViewHTML() {
+  const bq = state.recipient.data.bouquet;
+  return `
+  <div style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;${bouquetBackgroundStyle(bq.background)}">
+    <div style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+      <div>
+        <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;text-shadow:0 2px 8px rgba(0,0,0,0.6);">A Bouquet For You 💐</h2>
+        <p class="font-mono" style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px;">From your Dino 🦖</p>
+      </div>
+      <button data-action="bouquet-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 0 60px;position:relative;z-index:10;">
+      ${bq.flowers.length ? flowerClusterHTML(bq, false) : `<p class="font-mono" style="color:rgba(255,255,255,0.55);font-size:13px;">No bouquet yet...</p>`}
+    </div>
+  </div>`;
+}
+
 // ── Letter editor ─────────────────────────────────────────────────────────
 const EDITOR_STEPS = ['Label & Style', 'Your Message', 'Add Media', 'Stickers', 'Preview'];
 
@@ -876,15 +1034,18 @@ function ownerStudioHTML() {
           📱 Send via WhatsApp ↗
         </a>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-        <button data-action="new-letter" class="glass-gold font-mono" style="border-radius:22px;padding:20px 8px;text-align:center;border:none;cursor:pointer;">
-          <div style="font-size:32px;margin-bottom:8px;">✍️</div><p style="font-size:12px;color:#b2c8ed;">Write Letter</p>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+        <button data-action="new-letter" class="glass-gold font-mono" style="border-radius:22px;padding:16px 4px;text-align:center;border:none;cursor:pointer;">
+          <div style="font-size:28px;margin-bottom:6px;">✍️</div><p style="font-size:11px;color:#b2c8ed;">Write Letter</p>
         </button>
-        <button data-action="owner-tab" data-tab="gallery" class="glass-gold font-mono" style="border-radius:22px;padding:20px 8px;text-align:center;border:none;cursor:pointer;">
-          <div style="font-size:32px;margin-bottom:8px;">📷</div><p style="font-size:12px;color:#b2c8ed;">Add Photo</p>
+        <button data-action="owner-tab" data-tab="gallery" class="glass-gold font-mono" style="border-radius:22px;padding:16px 4px;text-align:center;border:none;cursor:pointer;">
+          <div style="font-size:28px;margin-bottom:6px;">📷</div><p style="font-size:11px;color:#b2c8ed;">Add Photo</p>
         </button>
-        <button data-action="owner-tab" data-tab="moon" class="glass-gold font-mono" style="border-radius:22px;padding:20px 8px;text-align:center;border:none;cursor:pointer;">
-          <div style="font-size:32px;margin-bottom:8px;">🌙</div><p style="font-size:12px;color:#b2c8ed;">Moon Chat</p>
+        <button data-action="owner-tab" data-tab="bouquet" class="glass-gold font-mono" style="border-radius:22px;padding:16px 4px;text-align:center;border:none;cursor:pointer;">
+          <div style="font-size:28px;margin-bottom:6px;">💐</div><p style="font-size:11px;color:#b2c8ed;">Bouquet</p>
+        </button>
+        <button data-action="owner-tab" data-tab="moon" class="glass-gold font-mono" style="border-radius:22px;padding:16px 4px;text-align:center;border:none;cursor:pointer;">
+          <div style="font-size:28px;margin-bottom:6px;">🌙</div><p style="font-size:11px;color:#b2c8ed;">Moon Chat</p>
         </button>
       </div>
     </div>`;
@@ -932,7 +1093,7 @@ function ownerStudioHTML() {
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
-        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['moon', 'Talk to Moon']].map(([t, label]) => `
+        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['moon', 'Talk to Moon']].map(([t, label]) => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(178,200,237,0.06);">
             <span class="font-mono" style="font-size:13px;color:#b2c8ed;">${label}</span>
             <label class="toggle-wrap">
@@ -973,9 +1134,9 @@ function ownerStudioHTML() {
       ${tabHTML}
     </div>
     <nav style="position:fixed;bottom:0;left:0;width:100%;z-index:50;background:rgba(0,13,32,0.85);backdrop-filter:blur(16px);border-top:1px solid rgba(233,195,73,0.1);">
-      <div style="display:flex;justify-content:space-around;align-items:center;padding:8px 8px 12px;max-width:680px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-around;align-items:center;padding:8px 4px 12px;max-width:680px;margin:0 auto;overflow-x:auto;">
         ${OWNER_TABS.map(t => `
-          <button data-action="owner-tab" data-tab="${t.id}" class="font-mono" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 16px;border-radius:16px;border:none;cursor:pointer;font-size:11px;font-weight:600;
+          <button data-action="owner-tab" data-tab="${t.id}" class="font-mono" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 10px;border-radius:16px;border:none;cursor:pointer;font-size:10px;font-weight:600;flex-shrink:0;
             background:${tab === t.id ? 'rgba(233,195,73,0.12)' : 'transparent'};color:${tab === t.id ? '#e9c349' : 'rgba(178,200,237,0.4)'};transition:all 0.2s;">
             <span style="font-size:18px;">${t.icon}</span><span>${t.label}</span>
           </button>`).join('')}
@@ -1038,6 +1199,29 @@ async function publish() {
 async function updateCities() {
   await persist({ ...state.owner.data, fromCity: state.owner.cityForm.fromCity, toCity: state.owner.cityForm.toCity });
 }
+async function addBouquetFlower(id) {
+  const bq = state.owner.data.bouquet;
+  if (bq.flowers.length >= MAX_FLOWERS) return;
+  await persist({ ...state.owner.data, bouquet: { ...bq, flowers: [...bq.flowers, id] } });
+}
+async function removeBouquetFlower(index) {
+  const bq = state.owner.data.bouquet;
+  await persist({ ...state.owner.data, bouquet: { ...bq, flowers: bq.flowers.filter((_, i) => i !== index) } });
+}
+async function pickBouquetWrapping(id) {
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, wrapping: id } });
+}
+async function pickBouquetBgPreset(id) {
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, background: { type: 'preset', value: id } } });
+}
+async function setBouquetBgCustom() {
+  const url = (state.bouquetForm.bgUrl || '').trim();
+  if (!url) return;
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, background: { type: 'custom', value: url } } });
+}
+async function saveBouquetNote() {
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, note: state.bouquetForm.note } });
+}
 function copyLink() {
   navigator.clipboard.writeText(shareUrl());
   state.owner.copied = true; render();
@@ -1085,6 +1269,7 @@ async function unlock() {
   if (d) {
     state.owner.data = normalizeData(d);
     state.owner.cityForm = { fromCity: state.owner.data.fromCity, toCity: state.owner.data.toCity };
+    state.bouquetForm.note = state.owner.data.bouquet.note;
     render();
   }
 }
@@ -1189,10 +1374,17 @@ function handleClick(e) {
       if (window.confirm('Delete this line?')) moonDelete(el.dataset.id);
       break;
     case 'moon-close':
+    case 'bouquet-close':
       if (state.isRecipient && state.recipient.data) state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
       else state.owner.tab = 'home';
       render();
       break;
+    case 'bouquet-add-flower': addBouquetFlower(el.dataset.flower); break;
+    case 'bouquet-remove-flower': removeBouquetFlower(Number(el.dataset.index)); break;
+    case 'bouquet-pick-wrapping': pickBouquetWrapping(el.dataset.wrap); break;
+    case 'bouquet-pick-bg-preset': pickBouquetBgPreset(el.dataset.bg); break;
+    case 'bouquet-set-bg-custom': setBouquetBgCustom(); break;
+    case 'bouquet-save-note': saveBouquetNote(); break;
     case 'recipient-tab': state.recipient.tab = el.dataset.tab; render(); break;
     case 'recipient-retry': window.location.reload(); break;
   }
@@ -1207,6 +1399,7 @@ function handleInput(e) {
     : scope === 'newPhoto' ? state.newPhoto
     : scope === 'cityForm' ? state.owner.cityForm
     : scope === 'moonEditor' ? state.moonEditor
+    : scope === 'bouquetForm' ? state.bouquetForm
     : null;
   if (target) target[field] = t.value;
   // keep the add buttons' disabled state in sync without a full re-render
