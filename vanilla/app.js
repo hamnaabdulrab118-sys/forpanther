@@ -53,17 +53,27 @@ const ENVELOPE_CARD_COLORS = {
 
 const MAX_FLOWERS = 12;
 
+// Each flower is drawn as a small parametric SVG (layered petals around a
+// center) rather than emoji, for a softer illustrated look.
 const FLOWER_OPTIONS = [
-  { id: 'rose', emoji: '🌹', label: 'Rose' },
-  { id: 'tulip', emoji: '🌷', label: 'Tulip' },
-  { id: 'sunflower', emoji: '🌻', label: 'Sunflower' },
-  { id: 'daisy', emoji: '🌼', label: 'Daisy' },
-  { id: 'hibiscus', emoji: '🌺', label: 'Hibiscus' },
-  { id: 'blossom', emoji: '🌸', label: 'Blossom' },
-  { id: 'hyacinth', emoji: '🪻', label: 'Hyacinth' },
-  { id: 'lotus', emoji: '🪷', label: 'Lotus' },
-  { id: 'rosette', emoji: '🏵️', label: 'Rosette' },
-  { id: 'mixed', emoji: '💐', label: 'Mixed' },
+  { id: 'rose', label: 'Rose', petals: 8, petalColor: '#e8768f', centerColor: '#c94f6d' },
+  { id: 'tulip', label: 'Tulip', petals: 5, petalColor: '#f0879a', centerColor: '#d65d76' },
+  { id: 'sunflower', label: 'Sunflower', petals: 10, petalColor: '#f5c542', centerColor: '#6b4423' },
+  { id: 'daisy', label: 'Daisy', petals: 8, petalColor: '#fdfdf5', centerColor: '#f5c542' },
+  { id: 'hibiscus', label: 'Hibiscus', petals: 5, petalColor: '#e85d75', centerColor: '#f5c542' },
+  { id: 'blossom', label: 'Blossom', petals: 5, petalColor: '#fbd0dd', centerColor: '#f0879a' },
+  { id: 'hyacinth', label: 'Hyacinth', petals: 6, petalColor: '#b39ddb', centerColor: '#7e57c2' },
+  { id: 'lotus', label: 'Lotus', petals: 8, petalColor: '#f8c8dc', centerColor: '#e85d75' },
+  { id: 'rosette', label: 'Rosette', petals: 12, petalColor: '#e8a87c', centerColor: '#c9784f' },
+  { id: 'mixed', label: 'Mixed', petals: 6, petalColor: '#a8d5ba', centerColor: '#e85d75' },
+];
+
+// Ready-made starting points — apply one, then tweak flowers/wrapping freely.
+const BOUQUET_TEMPLATES = [
+  { id: 'classic-roses', label: 'Classic Roses', flowers: ['rose', 'rose', 'rose', 'rose', 'rose', 'rose'], wrapping: 'rose' },
+  { id: 'sunny-mix', label: 'Sunny Mix', flowers: ['sunflower', 'daisy', 'sunflower', 'daisy', 'sunflower', 'daisy'], wrapping: 'gold' },
+  { id: 'pastel-dream', label: 'Pastel Dream', flowers: ['blossom', 'hyacinth', 'lotus', 'blossom', 'hyacinth', 'lotus'], wrapping: 'lavender' },
+  { id: 'wild-garden', label: 'Wild Garden', flowers: ['rose', 'tulip', 'sunflower', 'daisy', 'hibiscus', 'blossom', 'hyacinth', 'lotus'], wrapping: 'sage' },
 ];
 
 const WRAPPING_OPTIONS = [
@@ -684,18 +694,48 @@ function bouquetBackgroundStyle(bg) {
   return `background:${preset.css};`;
 }
 
+function shadeColor(hex, percent) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  let r = (num >> 16) + percent, g = ((num >> 8) & 0x00FF) + percent, b = (num & 0x0000FF) + percent;
+  r = Math.max(Math.min(255, r), 0); g = Math.max(Math.min(255, g), 0); b = Math.max(Math.min(255, b), 0);
+  return `#${(0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1)}`;
+}
+
+// A small parametric SVG flower — petals as rotated ellipses around a center
+// circle. Varying petal count/colors per FLOWER_OPTIONS entry gives each type
+// a distinct silhouette without needing hand-drawn art assets.
+function flowerSVG(f, size) {
+  const cx = size / 2, cy = size / 2;
+  const petalRx = size * 0.2, petalRy = size * 0.32;
+  let petals = '';
+  for (let i = 0; i < f.petals; i++) {
+    const angle = (360 / f.petals) * i;
+    petals += `<ellipse cx="${cx}" cy="${cy - petalRy * 0.5}" rx="${petalRx}" ry="${petalRy}" fill="${f.petalColor}" opacity="0.94" transform="rotate(${angle} ${cx} ${cy})" />`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow:visible;display:block;">
+    ${petals}
+    <circle cx="${cx}" cy="${cy}" r="${size * 0.14}" fill="${f.centerColor}" />
+  </svg>`;
+}
+
 function flowerClusterHTML(bouquet, editable) {
-  const wrap = WRAPPING_OPTIONS.find(w => w.id === bouquet.wrapping) || WRAPPING_OPTIONS[0];
+  const wrapC = WRAPPING_OPTIONS.find(w => w.id === bouquet.wrapping) || WRAPPING_OPTIONS[0];
+  const wrapGradient = `linear-gradient(135deg, ${shadeColor(wrapC.color, 30)} 0%, ${wrapC.color} 55%, ${shadeColor(wrapC.color, -30)} 100%)`;
   const flowerHTML = bouquet.flowers.map((fid, i) => {
     const f = FLOWER_OPTIONS.find(x => x.id === fid) || FLOWER_OPTIONS[0];
     const pos = BOUQUET_POSITIONS[i] || { x: 0, y: 0, r: 0 };
-    return `<span ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
-      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${130 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);font-size:38px;${editable ? 'cursor:pointer;' : ''}">${f.emoji}</span>`;
+    const delay = (i % 6) * 0.35;
+    return `<div ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
+      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${130 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);${editable ? 'cursor:pointer;' : ''}">
+      <div style="animation:bloomIn 0.45s ease-out, flowerSway ${3.5 + (i % 3) * 0.4}s ease-in-out ${delay}s infinite;">
+        ${flowerSVG(f, 52)}
+      </div>
+    </div>`;
   }).join('');
   return `
   <div style="position:relative;width:260px;height:260px;margin:0 auto;">
     ${flowerHTML}
-    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:170px;height:130px;background:${wrap.color};clip-path:polygon(50% 0%, 100% 100%, 0% 100%);box-shadow:0 12px 30px rgba(0,0,0,0.4);"></div>
+    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:170px;height:130px;background:${wrapGradient};clip-path:polygon(50% 0%, 100% 100%, 0% 100%);box-shadow:0 12px 30px rgba(0,0,0,0.4);"></div>
     ${bouquet.note ? `
       <div style="position:absolute;right:0;bottom:36px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
         <p class="font-serif" style="font-size:11px;color:#2c1d11;font-style:italic;">"${esc(bouquet.note)}"</p>
@@ -723,11 +763,23 @@ function bouquetBuilderHTML() {
 
     <div style="position:relative;z-index:10;max-width:600px;margin:0 auto;padding:0 16px 110px;display:flex;flex-direction:column;gap:16px;">
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Quick-start templates</p>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+          ${BOUQUET_TEMPLATES.map(t => `
+            <button data-action="bouquet-apply-template" data-template="${t.id}" class="font-mono"
+              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;border:none;cursor:pointer;background:rgba(178,200,237,0.06);text-align:left;">
+              <span style="display:flex;">${t.flowers.slice(0, 3).map(fid => flowerSVG(FLOWER_OPTIONS.find(x => x.id === fid), 22)).join('')}</span>
+              <span style="font-size:11px;color:#b2c8ed;">${esc(t.label)}</span>
+            </button>`).join('')}
+        </div>
+      </div>
+
+      <div class="glass-gold" style="border-radius:24px;padding:20px;">
         <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Flowers</p>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
           ${FLOWER_OPTIONS.map(f => `
             <button data-action="bouquet-add-flower" data-flower="${f.id}" ${full ? 'disabled' : ''} title="${f.label}"
-              style="font-size:26px;padding:10px 0;border-radius:14px;border:none;cursor:${full ? 'not-allowed' : 'pointer'};background:rgba(178,200,237,0.08);opacity:${full ? 0.4 : 1};">${f.emoji}</button>`).join('')}
+              style="display:flex;align-items:center;justify-content:center;padding:8px 0;border-radius:14px;border:none;cursor:${full ? 'not-allowed' : 'pointer'};background:rgba(178,200,237,0.08);opacity:${full ? 0.4 : 1};">${flowerSVG(f, 30)}</button>`).join('')}
         </div>
       </div>
 
@@ -1204,6 +1256,12 @@ async function addBouquetFlower(id) {
   if (bq.flowers.length >= MAX_FLOWERS) return;
   await persist({ ...state.owner.data, bouquet: { ...bq, flowers: [...bq.flowers, id] } });
 }
+async function applyBouquetTemplate(id) {
+  const t = BOUQUET_TEMPLATES.find(x => x.id === id);
+  if (!t) return;
+  if (state.owner.data.bouquet.flowers.length > 0 && !window.confirm('Replace your current flowers with this template?')) return;
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, flowers: [...t.flowers], wrapping: t.wrapping } });
+}
 async function removeBouquetFlower(index) {
   const bq = state.owner.data.bouquet;
   await persist({ ...state.owner.data, bouquet: { ...bq, flowers: bq.flowers.filter((_, i) => i !== index) } });
@@ -1380,6 +1438,7 @@ function handleClick(e) {
       render();
       break;
     case 'bouquet-add-flower': addBouquetFlower(el.dataset.flower); break;
+    case 'bouquet-apply-template': applyBouquetTemplate(el.dataset.template); break;
     case 'bouquet-remove-flower': removeBouquetFlower(Number(el.dataset.index)); break;
     case 'bouquet-pick-wrapping': pickBouquetWrapping(el.dataset.wrap); break;
     case 'bouquet-pick-bg-preset': pickBouquetBgPreset(el.dataset.bg); break;
