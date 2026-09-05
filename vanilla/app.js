@@ -718,26 +718,52 @@ function flowerSVG(f, size) {
   </svg>`;
 }
 
+// A proper paper-cone wrap: wavy/torn top edge, sides tapering to a rounded
+// gathered bottom, subtle fold-crease lines, and a ribbon bow — instead of a
+// flat clip-path triangle.
+function wrappingSVG(wrapC) {
+  const top = shadeColor(wrapC.color, 35);
+  const base = wrapC.color;
+  const dark = shadeColor(wrapC.color, -35);
+  const gradId = `wrapGrad-${wrapC.id}`;
+  return `<svg width="200" height="172" viewBox="0 0 200 172" style="overflow:visible;display:block;">
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="${top}" />
+        <stop offset="55%" stop-color="${base}" />
+        <stop offset="100%" stop-color="${dark}" />
+      </linearGradient>
+    </defs>
+    <path d="M10 8 C40 -4 70 16 100 6 C130 -4 160 16 190 8 L132 152 Q100 166 68 152 Z" fill="url(#${gradId})" stroke="${dark}" stroke-width="1" opacity="0.97" />
+    <path d="M100 152 L42 8" stroke="${dark}" stroke-width="1" opacity="0.22" fill="none" />
+    <path d="M100 152 L100 6" stroke="${dark}" stroke-width="1" opacity="0.22" fill="none" />
+    <path d="M100 152 L158 8" stroke="${dark}" stroke-width="1" opacity="0.22" fill="none" />
+    <path d="M20 44 Q100 36 180 44 L178 58 Q100 50 22 58 Z" fill="#e9c349" opacity="0.94" />
+    <ellipse cx="84" cy="51" rx="17" ry="10" fill="#e9c349" transform="rotate(-22 84 51)" />
+    <ellipse cx="116" cy="51" rx="17" ry="10" fill="#e9c349" transform="rotate(22 116 51)" />
+    <circle cx="100" cy="51" r="7" fill="#c9a13a" />
+  </svg>`;
+}
+
 function flowerClusterHTML(bouquet, editable) {
   const wrapC = WRAPPING_OPTIONS.find(w => w.id === bouquet.wrapping) || WRAPPING_OPTIONS[0];
-  const wrapGradient = `linear-gradient(135deg, ${shadeColor(wrapC.color, 30)} 0%, ${wrapC.color} 55%, ${shadeColor(wrapC.color, -30)} 100%)`;
   const flowerHTML = bouquet.flowers.map((fid, i) => {
     const f = FLOWER_OPTIONS.find(x => x.id === fid) || FLOWER_OPTIONS[0];
     const pos = BOUQUET_POSITIONS[i] || { x: 0, y: 0, r: 0 };
     const delay = (i % 6) * 0.35;
     return `<div ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
-      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${130 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);${editable ? 'cursor:pointer;' : ''}">
+      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${148 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);${editable ? 'cursor:pointer;' : ''}">
       <div style="animation:bloomIn 0.45s ease-out, flowerSway ${3.5 + (i % 3) * 0.4}s ease-in-out ${delay}s infinite;">
         ${flowerSVG(f, 52)}
       </div>
     </div>`;
   }).join('');
   return `
-  <div style="position:relative;width:260px;height:260px;margin:0 auto;">
+  <div style="position:relative;width:260px;height:300px;margin:0 auto;">
     ${flowerHTML}
-    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:170px;height:130px;background:${wrapGradient};clip-path:polygon(50% 0%, 100% 100%, 0% 100%);box-shadow:0 12px 30px rgba(0,0,0,0.4);"></div>
+    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:190px;filter:drop-shadow(0 12px 22px rgba(0,0,0,0.4));">${wrappingSVG(wrapC)}</div>
     ${bouquet.note ? `
-      <div style="position:absolute;right:0;bottom:36px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
+      <div style="position:absolute;right:6px;bottom:56px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
         <p class="font-serif" style="font-size:11px;color:#2c1d11;font-style:italic;">"${esc(bouquet.note)}"</p>
       </div>` : ''}
   </div>`;
