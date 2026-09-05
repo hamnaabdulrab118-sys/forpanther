@@ -16,6 +16,8 @@ const DEFAULT_DATA = {
   fromCity: 'Sialkot', toCity: 'Ormara',
   distanceKm: 730, distanceMiles: 454,
   isPublished: false,
+  moonMessages: [],
+  hiddenTabs: { letters: false, gallery: false, moon: false },
 };
 
 const LABELS = [
@@ -68,7 +70,6 @@ const MOON_REPLIES = [
 ];
 let moonReplyIdx = 0;
 const getMoonReply = () => MOON_REPLIES[moonReplyIdx++ % MOON_REPLIES.length];
-const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 const OWNER_TABS = [
   { id: 'home', icon: '🏠', label: 'Home' },
@@ -110,7 +111,11 @@ function freshLetter() {
   };
 }
 function normalizeData(d) {
-  return { ...DEFAULT_DATA, ...d, letters: d.letters || [], gallery: d.gallery || [] };
+  return {
+    ...DEFAULT_DATA, ...d,
+    letters: d.letters || [], gallery: d.gallery || [], moonMessages: d.moonMessages || [],
+    hiddenTabs: { ...DEFAULT_DATA.hiddenTabs, ...(d.hiddenTabs || {}) },
+  };
 }
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -162,6 +167,10 @@ function requestLiveLocation() {
   );
 }
 
+function firstVisibleRecipientTab(data) {
+  const order = ['letters', 'gallery', 'moon'];
+  return order.find(t => !data.hiddenTabs[t]) || 'letters';
+}
 function shareUrl() {
   return `${window.location.origin}${window.location.pathname}?gift=main`;
 }
@@ -214,10 +223,7 @@ const state = {
   openLetterId: null,
   newPhoto: { url: '', caption: '', location: '' },
   lightbox: null, // { idx }
-  moon: {
-    input: '', typing: false,
-    messages: [{ id: '0', from: 'moon', text: "Hello, little Dino 🦖 I've been watching over your Panther tonight. What's on your heart? 🌙", time: nowTime() }],
-  },
+  moonEditor: { dinoDraft: '', moonDraft: '', editingId: null, editingText: '' },
 };
 
 const root = document.getElementById('root');
@@ -243,7 +249,7 @@ function render() {
     case 'recipient-error': html = recipientErrorHTML(); break;
     case 'recipient': html = recipientViewHTML(); break;
     case 'pin': html = pinScreenHTML(); break;
-    case 'moon': html = moonChatHTML(); break;
+    case 'moon': html = (state.isRecipient && state.recipient.data) ? moonScriptViewHTML() : moonScriptEditorHTML(); break;
     case 'editor': html = letterEditorHTML(); break;
     case 'owner': html = ownerStudioHTML(); break;
   }
@@ -351,7 +357,7 @@ function recipientViewHTML() {
     { id: 'letters', label: `Letters (${d.letters.filter(l => l.isPublished).length})`, emoji: '💌' },
     { id: 'gallery', label: `Gallery (${d.gallery.length})`, emoji: '📷' },
     { id: 'moon', label: 'Talk to Moon', emoji: '🌙' },
-  ];
+  ].filter(t => !d.hiddenTabs[t.id]);
   return `
   <div style="${PAGE_STYLE}">
     ${starsHTML()}
@@ -525,59 +531,96 @@ function lightboxOverlayHTML(photos) {
   </div>`;
 }
 
-// ── Moon chat ─────────────────────────────────────────────────────────────
-function moonChatHTML() {
-  const { messages, typing, input } = state.moon;
+// ── Moon chat (owner-scripted; Panther just reads it) ──────────────────────
+function moonBubbleHTML(m, ownerControls) {
+  if (ownerControls && state.moonEditor.editingId === m.id) {
+    return `
+    <div style="display:flex;justify-content:${m.from === 'dino' ? 'flex-end' : 'flex-start'};">
+      <div style="max-width:320px;width:100%;">
+        <textarea data-scope="moonEditor" data-field="editingText" rows="3" class="font-serif"
+          style="${EDITOR_INPUT_STYLE}font-size:14px;">${esc(state.moonEditor.editingText)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end;">
+          <button data-action="moon-edit-cancel" class="font-mono" style="padding:6px 12px;border-radius:10px;background:rgba(178,200,237,0.08);border:none;color:#b2c8ed;font-size:11px;cursor:pointer;">Cancel</button>
+          <button data-action="moon-edit-save" data-id="${esc(m.id)}" class="font-mono" style="padding:6px 12px;border-radius:10px;background:#e9c349;border:none;color:#000d20;font-size:11px;font-weight:700;cursor:pointer;">Save</button>
+        </div>
+      </div>
+    </div>`;
+  }
   return `
-  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:linear-gradient(180deg,#000005 0%,#000814 50%,#000d20 100%);">
+  <div style="display:flex;justify-content:${m.from === 'dino' ? 'flex-end' : 'flex-start'};gap:6px;animation:fadeIn 0.3s ease-out;">
+    ${m.from === 'moon' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;font-size:16px;">🌙</div>` : ''}
+    <div style="max-width:280px;">
+      <div class="${m.from === 'dino' ? '' : 'font-serif'}" style="padding:12px 18px;border-radius:22px;font-size:14px;line-height:1.6;
+        background:${m.from === 'dino' ? '#e9c349' : 'rgba(3,28,57,0.8)'};color:${m.from === 'dino' ? '#000d20' : '#eef4ff'};font-weight:${m.from === 'dino' ? 500 : 400};
+        border-bottom-right-radius:${m.from === 'dino' ? '6px' : '22px'};border-bottom-left-radius:${m.from === 'moon' ? '6px' : '22px'};
+        border:${m.from === 'moon' ? '1px solid rgba(251,191,36,0.15)' : 'none'};">
+        ${esc(m.text)}
+      </div>
+      <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.3);margin-top:4px;text-align:${m.from === 'dino' ? 'right' : 'left'};">
+        ${m.from === 'dino' ? 'Dino 🦖' : 'Moon 🌙'}
+      </p>
+    </div>
+    ${m.from === 'dino' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;font-size:16px;">🦖</div>` : ''}
+    ${ownerControls ? `
+      <div style="display:flex;flex-direction:column;gap:4px;justify-content:center;">
+        <button data-action="moon-edit-start" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(233,195,73,0.15);border:none;cursor:pointer;font-size:10px;color:#e9c349;">✎</button>
+        <button data-action="moon-delete" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.15);border:none;cursor:pointer;font-size:10px;color:#f87171;">×</button>
+      </div>` : ''}
+  </div>`;
+}
+
+function moonHeaderHTML(title, subtitle) {
+  return `
     ${moonStarsHTML()}
     <div style="position:absolute;top:20px;right:20px;pointer-events:none;animation:pulseGlow 2.5s ease-in-out infinite;">
       <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#fef9c3,#fde68a,#fbbf24);box-shadow:0 0 40px rgba(251,191,36,0.55);">
         <span style="font-size:36px;">🌙</span>
       </div>
     </div>
-
     <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
       <div>
-        <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;">Talk to the Moon</h2>
-        <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">Whisper across the miles ✈️</p>
+        <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;">${esc(title)}</h2>
+        <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">${esc(subtitle)}</p>
       </div>
       <button data-action="moon-close" style="width:36px;height:36px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#b2c8ed;">✕</button>
-    </div>
+    </div>`;
+}
 
+function moonScriptEditorHTML() {
+  const messages = state.owner.data.moonMessages;
+  return `
+  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:linear-gradient(180deg,#000005 0%,#000814 50%,#000d20 100%);">
+    ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨')}
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
-      ${messages.map(m => `
-        <div style="display:flex;justify-content:${m.from === 'dino' ? 'flex-end' : 'flex-start'};animation:fadeIn 0.3s ease-out;">
-          ${m.from === 'moon' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;margin-top:4px;font-size:16px;">🌙</div>` : ''}
-          <div style="max-width:300px;">
-            <div class="${m.from === 'dino' ? '' : 'font-serif'}" style="padding:12px 18px;border-radius:22px;font-size:14px;line-height:1.6;
-              background:${m.from === 'dino' ? '#e9c349' : 'rgba(3,28,57,0.8)'};color:${m.from === 'dino' ? '#000d20' : '#eef4ff'};font-weight:${m.from === 'dino' ? 500 : 400};
-              border-bottom-right-radius:${m.from === 'dino' ? '6px' : '22px'};border-bottom-left-radius:${m.from === 'moon' ? '6px' : '22px'};
-              border:${m.from === 'moon' ? '1px solid rgba(251,191,36,0.15)' : 'none'};">
-              ${esc(m.text)}
-            </div>
-            <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.3);margin-top:4px;text-align:${m.from === 'dino' ? 'right' : 'left'};">
-              ${m.from === 'dino' ? 'Dino 🦖' : 'Moon 🌙'} · ${esc(m.time)}
-            </p>
-          </div>
-          ${m.from === 'dino' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;margin-left:10px;flex-shrink:0;margin-top:4px;font-size:16px;">🦖</div>` : ''}
-        </div>`).join('')}
-      ${typing ? `
-        <div style="display:flex;align-items:center;gap:10px;animation:fadeIn 0.3s ease-out;">
-          <div style="width:34px;height:34px;border-radius:50%;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;font-size:16px;">🌙</div>
-          <div style="padding:14px 18px;border-radius:22px 22px 22px 6px;background:rgba(3,28,57,0.8);border:1px solid rgba(251,191,36,0.15);display:flex;gap:6px;">
-            ${[0, 1, 2].map(i => `<div style="width:7px;height:7px;border-radius:50%;background:#fbbf24;animation:bounceDot 1s ease-in-out ${i * 0.15}s infinite;"></div>`).join('')}
-          </div>
-        </div>` : ''}
+      ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">No lines yet — add the first one below</p>` : ''}
+      ${messages.map(m => moonBubbleHTML(m, true)).join('')}
     </div>
-
-    <div class="glass" style="position:relative;z-index:10;padding:14px 16px 24px;border-top:1px solid rgba(255,255,255,0.07);">
-      <div style="display:flex;gap:12px;align-items:flex-end;">
-        <input type="text" value="${esc(input)}" data-scope="moon" data-field="input" data-role="moon-input" placeholder="Whisper to the moon..." class="font-serif"
-          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(251,191,36,0.18);border-radius:20px;padding:13px 18px;color:#eef4ff;font-size:14px;outline:none;" />
-        <button data-action="moon-send" ${!input.trim() ? 'disabled' : ''} class="btn-gold" style="width:50px;height:50px;border-radius:16px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">➤</button>
+    <div class="glass" style="position:relative;z-index:10;padding:14px 16px 20px;border-top:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:16px;flex-shrink:0;">🦖</span>
+        <input type="text" value="${esc(state.moonEditor.dinoDraft)}" data-scope="moonEditor" data-field="dinoDraft" data-role="moon-dino-input" placeholder="Add a line as Dino..." class="font-serif"
+          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(233,195,73,0.18);border-radius:20px;padding:11px 16px;color:#eef4ff;font-size:13px;outline:none;" />
+        <button data-action="moon-add-dino" ${!state.moonEditor.dinoDraft.trim() ? 'disabled' : ''} class="btn-gold" style="padding:10px 16px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;flex-shrink:0;">Add</button>
       </div>
-      <p class="font-mono" style="text-align:center;font-size:10px;color:rgba(178,200,237,0.22);margin-top:10px;">Your words travel with every shooting star ✨</p>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:16px;flex-shrink:0;">🌙</span>
+        <input type="text" value="${esc(state.moonEditor.moonDraft)}" data-scope="moonEditor" data-field="moonDraft" data-role="moon-moon-input" placeholder="Add a line as Moon..." class="font-serif"
+          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(251,191,36,0.18);border-radius:20px;padding:11px 16px;color:#eef4ff;font-size:13px;outline:none;" />
+        <button data-action="moon-suggest" class="font-mono" title="Suggest a line" style="padding:10px 12px;border-radius:14px;border:1px solid rgba(251,191,36,0.25);background:rgba(251,191,36,0.08);color:#fbbf24;cursor:pointer;font-size:12px;flex-shrink:0;">✨</button>
+        <button data-action="moon-add-moon" ${!state.moonEditor.moonDraft.trim() ? 'disabled' : ''} class="font-mono" style="padding:10px 16px;border-radius:14px;border:1px solid rgba(251,191,36,0.3);background:rgba(251,191,36,0.15);color:#fde68a;font-weight:700;cursor:pointer;font-size:12px;flex-shrink:0;">Add</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function moonScriptViewHTML() {
+  const messages = state.recipient.data.moonMessages;
+  return `
+  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:linear-gradient(180deg,#000005 0%,#000814 50%,#000d20 100%);">
+    ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️')}
+    <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
+      ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">Nothing written yet...</p>` : ''}
+      ${messages.map(m => moonBubbleHTML(m, false)).join('')}
     </div>
   </div>`;
 }
@@ -888,6 +931,18 @@ function ownerStudioHTML() {
         <button data-action="update-cities" class="btn-gold font-mono" style="width:100%;padding:12px 0;border-radius:16px;border:none;cursor:pointer;font-size:13px;">Update Cities</button>
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
+        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
+        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['moon', 'Talk to Moon']].map(([t, label]) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(178,200,237,0.06);">
+            <span class="font-mono" style="font-size:13px;color:#b2c8ed;">${label}</span>
+            <label class="toggle-wrap">
+              <input type="checkbox" class="toggle-input" data-action="toggle-hidden-tab" data-tab="${t}" ${!data.hiddenTabs[t] ? 'checked' : ''} />
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>`).join('')}
+        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-top:10px;">Toggle off to hide a screen from Panther's gift link.</p>
+      </div>
+      <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Share Info</p>
         <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:8px;">Owner PIN: <span style="color:#e9c349;font-weight:700;font-size:16px;">${OWNER_PIN}</span></p>
         <p class="font-mono" style="font-size:12px;color:rgba(178,200,237,0.4);margin-bottom:12px;word-break:break-all;">Panther's link: <span style="color:#7dd3fc;">${esc(url)}</span></p>
@@ -995,18 +1050,30 @@ function moveLightbox(delta) {
   state.lightbox.idx = (state.lightbox.idx + delta + n) % n;
   render();
 }
-function sendMoonMessage() {
-  const text = (state.moon.input || '').trim();
+async function addMoonLine(from) {
+  const field = from === 'dino' ? 'dinoDraft' : 'moonDraft';
+  const text = (state.moonEditor[field] || '').trim();
   if (!text) return;
-  state.moon.messages.push({ id: String(Date.now()), from: 'dino', text, time: nowTime() });
-  state.moon.input = '';
-  state.moon.typing = true;
+  state.moonEditor[field] = '';
+  await persist({ ...state.owner.data, moonMessages: [...state.owner.data.moonMessages, { id: `moon-${Date.now()}`, from, text }] });
+}
+function moonEditStart(id) {
+  const m = state.owner.data.moonMessages.find(x => x.id === id);
+  if (!m) return;
+  state.moonEditor.editingId = id;
+  state.moonEditor.editingText = m.text;
   render();
-  setTimeout(() => {
-    state.moon.typing = false;
-    state.moon.messages.push({ id: String(Date.now() + 1), from: 'moon', text: getMoonReply(), time: nowTime() });
-    render();
-  }, 1200 + Math.random() * 900);
+}
+async function moonEditSave() {
+  const id = state.moonEditor.editingId;
+  const text = (state.moonEditor.editingText || '').trim();
+  state.moonEditor.editingId = null;
+  if (!id || !text) { render(); return; }
+  const moonMessages = state.owner.data.moonMessages.map(m => m.id === id ? { ...m, text } : m);
+  await persist({ ...state.owner.data, moonMessages });
+}
+async function moonDelete(id) {
+  await persist({ ...state.owner.data, moonMessages: state.owner.data.moonMessages.filter(m => m.id !== id) });
 }
 
 // ── PIN logic ─────────────────────────────────────────────────────────────
@@ -1112,9 +1179,17 @@ function handleClick(e) {
       render();
       break;
     }
-    case 'moon-send': sendMoonMessage(); break;
+    case 'moon-add-dino': addMoonLine('dino'); break;
+    case 'moon-add-moon': addMoonLine('moon'); break;
+    case 'moon-suggest': state.moonEditor.moonDraft = getMoonReply(); render(); break;
+    case 'moon-edit-start': moonEditStart(el.dataset.id); break;
+    case 'moon-edit-save': moonEditSave(); break;
+    case 'moon-edit-cancel': state.moonEditor.editingId = null; render(); break;
+    case 'moon-delete':
+      if (window.confirm('Delete this line?')) moonDelete(el.dataset.id);
+      break;
     case 'moon-close':
-      if (state.isRecipient && state.recipient.data) state.recipient.tab = 'letters';
+      if (state.isRecipient && state.recipient.data) state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
       else state.owner.tab = 'home';
       render();
       break;
@@ -1131,12 +1206,16 @@ function handleInput(e) {
   const target = scope === 'editor' ? state.editor.draft
     : scope === 'newPhoto' ? state.newPhoto
     : scope === 'cityForm' ? state.owner.cityForm
-    : scope === 'moon' ? state.moon
+    : scope === 'moonEditor' ? state.moonEditor
     : null;
   if (target) target[field] = t.value;
-  // keep the send button's disabled state in sync without a full re-render
-  if (scope === 'moon' && field === 'input') {
-    const btn = root.querySelector('[data-action="moon-send"]');
+  // keep the add buttons' disabled state in sync without a full re-render
+  if (scope === 'moonEditor' && field === 'dinoDraft') {
+    const btn = root.querySelector('[data-action="moon-add-dino"]');
+    if (btn) btn.disabled = !t.value.trim();
+  }
+  if (scope === 'moonEditor' && field === 'moonDraft') {
+    const btn = root.querySelector('[data-action="moon-add-moon"]');
     if (btn) btn.disabled = !t.value.trim();
   }
   if (scope === 'newPhoto' && field === 'url') {
@@ -1152,6 +1231,9 @@ function handleChange(e) {
   if (action === 'editor-toggle-flag') {
     state.editor.draft[el.dataset.field] = el.checked;
     render();
+  } else if (action === 'toggle-hidden-tab') {
+    const t = el.dataset.tab;
+    persist({ ...state.owner.data, hiddenTabs: { ...state.owner.data.hiddenTabs, [t]: !el.checked } });
   } else if (action === 'editor-file') {
     const file = el.files && el.files[0];
     if (!file) return;
@@ -1198,9 +1280,13 @@ function handleKeydown(e) {
     }
     return;
   }
-  if (e.target.dataset.role === 'moon-input' && e.key === 'Enter' && !e.shiftKey) {
+  if (e.target.dataset.role === 'moon-dino-input' && e.key === 'Enter') {
     e.preventDefault();
-    sendMoonMessage();
+    addMoonLine('dino');
+  }
+  if (e.target.dataset.role === 'moon-moon-input' && e.key === 'Enter') {
+    e.preventDefault();
+    addMoonLine('moon');
   }
 }
 
@@ -1222,8 +1308,10 @@ async function init() {
     state.recipient.loading = true;
     render();
     const d = await loadData();
-    if (d) state.recipient.data = normalizeData(d);
-    else state.recipient.error = true;
+    if (d) {
+      state.recipient.data = normalizeData(d);
+      state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
+    } else state.recipient.error = true;
     state.recipient.loading = false;
     render();
     if (state.recipient.data) requestLiveLocation();
