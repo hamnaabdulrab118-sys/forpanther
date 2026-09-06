@@ -675,6 +675,165 @@ function moonPhaseSVG(day, size, uid) {
   </svg>`;
 }
 
+// ── 30-day sky moods + colors (paired with the moon phase above) ───────────
+const MOON_DAY_THEMES = [
+  { label: 'Shiny Night',     dots: 'many',    shooting: 'none',    extra: null,          sky: 'linear-gradient(180deg,#000005 0%,#000814 45%,#000d20 100%)' },
+  { label: 'Shooting Stars',  dots: 'few',     shooting: 'many',    extra: null,          sky: 'linear-gradient(180deg,#00030a 0%,#000c1c 45%,#001028 100%)' },
+  { label: 'Mixed Sky',       dots: 'normal',  shooting: 'normal',  extra: null,          sky: 'linear-gradient(180deg,#02020a 0%,#0a0a1e 45%,#12102c 100%)' },
+  { label: 'Quiet Sky',       dots: 'sparse',  shooting: 'none',    extra: null,          sky: 'linear-gradient(180deg,#000000 0%,#020208 50%,#04040c 100%)' },
+  { label: 'Mars & Jupiter',  dots: 'none',    shooting: 'none',    extra: 'planets',     sky: 'linear-gradient(180deg,#01040c 0%,#080c1e 45%,#151022 100%)' },
+  { label: 'Satellite Pass',  dots: 'normal',  shooting: 'none',    extra: 'satellite',   sky: 'linear-gradient(180deg,#000509 0%,#001620 45%,#00232c 100%)' },
+  { label: 'Northern Lights', dots: 'few',     shooting: 'none',    extra: 'aurora',      sky: 'linear-gradient(180deg,#000905 0%,#001d14 45%,#003322 100%)' },
+  { label: 'Meteor Shower',   dots: 'few',     shooting: 'radiant', extra: null,          sky: 'linear-gradient(180deg,#050208 0%,#0e0a18 50%,#1c0f14 100%)' },
+  { label: 'Nebula Glow',     dots: 'normal',  shooting: 'none',    extra: 'nebula',      sky: 'linear-gradient(180deg,#050212 0%,#140a2e 45%,#231246 100%)' },
+  { label: 'Milky Way',       dots: 'many',    shooting: 'none',    extra: 'milkyway',    sky: 'linear-gradient(180deg,#020210 0%,#0a0a2e 45%,#141048 100%)' },
+  { label: 'Cloudy Sky',      dots: 'sparse',  shooting: 'none',    extra: 'clouds',      sky: 'linear-gradient(180deg,#0a0e14 0%,#1a222e 50%,#2a3442 100%)' },
+  { label: 'Passing Comet',   dots: 'normal',  shooting: 'none',    extra: 'comet',       sky: 'linear-gradient(180deg,#00040c 0%,#001426 45%,#002038 100%)' },
+  { label: 'Star Clusters',   dots: 'cluster', shooting: 'none',    extra: null,          sky: 'linear-gradient(180deg,#03020c 0%,#0e0a24 45%,#1a1238 100%)' },
+  { label: 'Lunar Eclipse',   dots: 'sparse',  shooting: 'none',    extra: null, moonTint: 'red',  sky: 'linear-gradient(180deg,#0a0002 0%,#220408 45%,#380810 100%)' },
+  { label: 'Supermoon',       dots: 'many',    shooting: 'none',    extra: null, moonTint: 'big',  sky: 'linear-gradient(180deg,#020614 0%,#0d1c34 45%,#1c3252 100%)' },
+  { label: 'Blue Moon',       dots: 'normal',  shooting: 'none',    extra: null, moonTint: 'blue', sky: 'linear-gradient(180deg,#00060c 0%,#00202c 45%,#00323e 100%)' },
+  { label: 'Distant Galaxy',  dots: 'normal',  shooting: 'none',    extra: 'galaxy',      sky: 'linear-gradient(180deg,#04020e 0%,#160a30 45%,#280f4a 100%)' },
+  { label: 'Fireflies',       dots: 'few',     shooting: 'none',    extra: 'fireflies',   sky: 'linear-gradient(180deg,#050400 0%,#161006 50%,#241a0a 100%)' },
+  { label: 'Starry Snow',     dots: 'normal',  shooting: 'none',    extra: 'snow',        sky: 'linear-gradient(180deg,#02060c 0%,#0c1c2c 45%,#182e42 100%)' },
+  { label: 'Binary Stars',    dots: 'normal',  shooting: 'none',    extra: 'doublestar',  sky: 'linear-gradient(180deg,#03010a 0%,#0f0824 45%,#1c1040 100%)' },
+  { label: 'Zodiac Lines',    dots: 'few',     shooting: 'none',    extra: 'zodiac',      sky: 'linear-gradient(180deg,#02020c 0%,#0a0a22 45%,#141238 100%)' },
+  { label: 'Distant Storm',   dots: 'sparse',  shooting: 'none',    extra: 'lightning',   sky: 'linear-gradient(180deg,#04060a 0%,#0e141c 50%,#1a222c 100%)' },
+  { label: 'Rainbow Aurora',  dots: 'few',     shooting: 'none',    extra: 'rainbow',     sky: 'linear-gradient(180deg,#020208 0%,#0a0a18 45%,#12142a 100%)' },
+  { label: 'Starburst',       dots: 'normal',  shooting: 'none',    extra: 'starburst',   sky: 'linear-gradient(180deg,#040204 0%,#100810 45%,#1c0e1c 100%)' },
+  { label: 'Twin Shooters',   dots: 'few',     shooting: 'paired',  extra: null,          sky: 'linear-gradient(180deg,#000509 0%,#001a24 45%,#00293a 100%)' },
+  { label: 'Foggy Sky',       dots: 'sparse',  shooting: 'none',    extra: 'fog',         sky: 'linear-gradient(180deg,#0a0a0c 0%,#181a1e 50%,#282c32 100%)' },
+  { label: "Saturn's Rings",  dots: 'normal',  shooting: 'none',    extra: 'rings',       sky: 'linear-gradient(180deg,#04030a 0%,#140f1e 45%,#241c2e 100%)' },
+  { label: 'Perseids',        dots: 'few',     shooting: 'radiant', extra: null,          sky: 'linear-gradient(180deg,#020208 0%,#0a0c1c 45%,#141830 100%)' },
+  { label: 'Calm Night',      dots: 'quiet',   shooting: 'none',    extra: null,          sky: 'linear-gradient(180deg,#000208 0%,#020816 45%,#041028 100%)' },
+  { label: 'Shiny Night',     dots: 'many',    shooting: 'none',    extra: null,          sky: 'linear-gradient(180deg,#000005 0%,#000814 45%,#000d20 100%)' },
+];
+
+// Stable random seeds for the sky primitives (generated once, reused across renders)
+const SKY_DOT_SEED = Array.from({ length: 80 }, () => ({
+  x: rnd() * 100, y: rnd() * 70, size: rnd() * 2.2 + 0.8,
+  dur: rnd() * 3 + 2, delay: rnd() * 5, opacity: rnd() * 0.5 + 0.4,
+}));
+const SKY_CLUSTER_SEED = Array.from({ length: 3 }, () => {
+  const cx = rnd() * 80 + 10, cy = rnd() * 50 + 5;
+  return Array.from({ length: 6 }, () => ({
+    x: cx + (rnd() - 0.5) * 12, y: cy + (rnd() - 0.5) * 10, size: rnd() * 2 + 1,
+    dur: rnd() * 2 + 2, delay: rnd() * 4, opacity: rnd() * 0.4 + 0.5,
+  }));
+}).flat();
+const FIREFLY_SEED = Array.from({ length: 14 }, () => ({ x: rnd() * 100, y: 20 + rnd() * 60, dur: 3 + rnd() * 3, delay: rnd() * 4 }));
+const SNOW_SEED = Array.from({ length: 24 }, () => ({ x: rnd() * 100, dur: 6 + rnd() * 6, delay: rnd() * 8, size: 2 + rnd() * 2 }));
+const STARBURST_SEED = { x: 20 + rnd() * 60, y: 15 + rnd() * 40 };
+
+function skyDotsHTML(density) {
+  const counts = { none: 0, sparse: 6, few: 15, normal: 35, many: 80, quiet: 5 };
+  const dots = density === 'cluster' ? SKY_CLUSTER_SEED : SKY_DOT_SEED.slice(0, counts[density] || 0);
+  const mult = density === 'quiet' ? 2.2 : 1;
+  return dots.map(s => `<div style="position:absolute;left:${s.x}%;top:${s.y}%;width:${s.size * mult}px;height:${s.size * mult}px;border-radius:50%;background:white;opacity:${s.opacity};box-shadow:0 0 ${s.size * 3}px white;animation:moonDotTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite;"></div>`).join('');
+}
+function skyShootingHTML(mode) {
+  let subset;
+  if (mode === 'few') subset = SHOOTING_STAR_DATA.slice(0, 8);
+  else if (mode === 'normal') subset = SHOOTING_STAR_DATA.slice(0, 20);
+  else if (mode === 'many') subset = SHOOTING_STAR_DATA;
+  else if (mode === 'paired') subset = [...SHOOTING_STAR_DATA.slice(0, 2).map(s => [s[0], s[1], 4, 0]), ...SHOOTING_STAR_DATA.slice(2, 4).map(s => [s[0], s[1], 4, 0.15])];
+  else if (mode === 'radiant') subset = SHOOTING_STAR_DATA.slice(0, 16).map(([tail, , dur], i) => [tail, 10 + (i % 8) * 8, dur * 0.5, i * 0.3]);
+  else subset = [];
+  const stars = subset.map(([tail, top, dur, delay]) =>
+    `<div class="star" style="--star-tail-length:${tail}em;--top-offset:${top}vh;--fall-duration:${dur}s;--fall-delay:${delay}s;"></div>`
+  ).join('');
+  return `<div class="shooting-stars-bg">${stars}</div>`;
+}
+function planetsHTML() {
+  return `<div style="position:absolute;left:38%;top:30%;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8a87c,#b5502e);box-shadow:0 0 10px rgba(181,80,46,0.7);"></div>
+    <div style="position:absolute;left:58%;top:22%;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8d5b0,#a67c3d);box-shadow:0 0 14px rgba(166,124,61,0.6);"></div>`;
+}
+function satelliteHTML() {
+  return `<div style="position:absolute;width:3px;height:3px;border-radius:50%;background:white;box-shadow:0 0 6px 2px white;animation:satelliteMove 14s linear infinite;"></div>`;
+}
+function auroraHTML(rainbow) {
+  const colors = rainbow
+    ? ['rgba(134,239,172,0.35)', 'rgba(125,211,252,0.3)', 'rgba(196,181,253,0.3)', 'rgba(253,164,175,0.28)']
+    : ['rgba(74,222,128,0.35)', 'rgba(52,211,153,0.3)', 'rgba(110,231,183,0.28)'];
+  return colors.map((c, i) => `<div style="position:absolute;left:${-10 + i * 8}%;top:0;width:60%;height:55%;background:linear-gradient(180deg,${c},transparent);filter:blur(6px);animation:auroraWave ${6 + i}s ease-in-out ${i * 0.6}s infinite;"></div>`).join('');
+}
+function nebulaHTML() {
+  return `<div style="position:absolute;left:20%;top:15%;width:220px;height:160px;background:radial-gradient(ellipse,rgba(196,120,253,0.28),transparent 70%);filter:blur(10px);"></div>
+    <div style="position:absolute;left:55%;top:30%;width:180px;height:140px;background:radial-gradient(ellipse,rgba(125,180,252,0.22),transparent 70%);filter:blur(10px);"></div>`;
+}
+function milkywayHTML() {
+  return `<div style="position:absolute;left:-20%;top:10%;width:140%;height:120px;background:linear-gradient(100deg,transparent,rgba(200,200,255,0.12) 40%,rgba(220,210,255,0.18) 50%,rgba(200,200,255,0.12) 60%,transparent);filter:blur(4px);transform:rotate(-18deg);"></div>`;
+}
+function cloudsHTML() {
+  return [0, 1, 2].map(i => `<div style="position:absolute;left:${-20 + i * 35}%;top:${15 + i * 18}%;width:260px;height:60px;background:rgba(200,210,225,0.15);border-radius:50%;filter:blur(14px);animation:fogDrift ${20 + i * 6}s ease-in-out ${i * 3}s infinite alternate;"></div>`).join('');
+}
+function cometHTML() {
+  return `<div style="position:absolute;width:5px;height:5px;border-radius:50%;background:#eef4ff;box-shadow:0 0 8px 3px #eef4ff, -40px -20px 30px 4px rgba(238,244,255,0.4);animation:cometMove 10s linear infinite;"></div>`;
+}
+function galaxyHTML() {
+  return `<div style="position:absolute;right:8%;top:12%;width:90px;height:90px;border-radius:50%;background:conic-gradient(from 0deg,rgba(160,120,255,0.3),rgba(255,200,220,0.15),transparent,rgba(160,120,255,0.3));filter:blur(3px);animation:galaxySpin 40s linear infinite;"></div>`;
+}
+function firefliesHTML() {
+  return FIREFLY_SEED.map(f => `<div style="position:absolute;left:${f.x}%;top:${f.y}%;width:3px;height:3px;border-radius:50%;background:#fde68a;box-shadow:0 0 6px 2px rgba(253,230,138,0.8);animation:particleFloat ${f.dur}s ease-in-out ${f.delay}s infinite;"></div>`).join('');
+}
+function snowHTML() {
+  return SNOW_SEED.map(s => `<span class="particle fall" style="left:${s.x}%;font-size:${s.size * 4}px;animation-duration:${s.dur}s;animation-delay:${s.delay}s;">❄️</span>`).join('');
+}
+function doublestarHTML() {
+  return `<div style="position:absolute;left:44%;top:25%;width:8px;height:8px;border-radius:50%;background:#fef9c3;box-shadow:0 0 16px 4px rgba(254,249,195,0.8);animation:moonDotTwinkle 3s ease-in-out infinite;"></div>
+    <div style="position:absolute;left:47%;top:27%;width:6px;height:6px;border-radius:50%;background:#bfdbfe;box-shadow:0 0 12px 3px rgba(191,219,254,0.7);animation:moonDotTwinkle 3.5s ease-in-out 0.5s infinite;"></div>`;
+}
+function zodiacHTML() {
+  const pts = [[20, 20], [28, 15], [36, 22], [44, 18], [40, 30]];
+  const lines = pts.slice(1).map((p, i) => `<line x1="${pts[i][0]}" y1="${pts[i][1]}" x2="${p[0]}" y2="${p[1]}" stroke="rgba(178,200,237,0.35)" stroke-width="0.3" />`).join('');
+  const dots = pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="0.6" fill="#eef4ff" />`).join('');
+  return `<svg viewBox="0 0 100 100" style="position:absolute;inset:0;width:100%;height:100%;">${lines}${dots}</svg>`;
+}
+function lightningHTML() {
+  return `<div style="position:absolute;inset:0;background:rgba(200,210,255,0.5);animation:lightningFlash 7s ease-in-out infinite;"></div>`;
+}
+function starburstHTML() {
+  return `<div style="position:absolute;left:${STARBURST_SEED.x}%;top:${STARBURST_SEED.y}%;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle,white,transparent 70%);animation:starburstPop 6s ease-out infinite;"></div>`;
+}
+function fogHTML() {
+  return `<div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(150,160,180,0.18) 60%,rgba(150,160,180,0.3));animation:fogDrift 18s ease-in-out infinite alternate;"></div>`;
+}
+function ringsHTML() {
+  return `<div style="position:absolute;left:70%;top:60%;width:60px;height:60px;">
+    <div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f3e0b8,#c9a25a);box-shadow:0 0 10px rgba(201,162,90,0.6);"></div>
+    <div style="position:absolute;top:50%;left:50%;width:100px;height:20px;border:2px solid rgba(233,209,150,0.6);border-radius:50%;transform:translate(-50%,-50%) rotate(-15deg);"></div>
+  </div>`;
+}
+function moonExtraHTML(extra) {
+  switch (extra) {
+    case 'planets': return planetsHTML();
+    case 'satellite': return satelliteHTML();
+    case 'aurora': return auroraHTML(false);
+    case 'rainbow': return auroraHTML(true);
+    case 'nebula': return nebulaHTML();
+    case 'milkyway': return milkywayHTML();
+    case 'clouds': return cloudsHTML();
+    case 'comet': return cometHTML();
+    case 'galaxy': return galaxyHTML();
+    case 'fireflies': return firefliesHTML();
+    case 'snow': return snowHTML();
+    case 'doublestar': return doublestarHTML();
+    case 'zodiac': return zodiacHTML();
+    case 'lightning': return lightningHTML();
+    case 'starburst': return starburstHTML();
+    case 'fog': return fogHTML();
+    case 'rings': return ringsHTML();
+    default: return '';
+  }
+}
+function moonDayTheme(day) {
+  return MOON_DAY_THEMES[day - 1] || MOON_DAY_THEMES[0];
+}
+function moonSkyHTML(day) {
+  const t = moonDayTheme(day);
+  return `${skyShootingHTML(t.shooting)}<div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;">${skyDotsHTML(t.dots)}${moonExtraHTML(t.extra)}</div>`;
+}
+
 // ── Moon chat (owner-scripted; Panther just reads it) ──────────────────────
 function moonBubbleHTML(m, ownerControls) {
   if (ownerControls && state.moonEditor.editingId === m.id) {
@@ -715,19 +874,21 @@ function moonBubbleHTML(m, ownerControls) {
 
 function moonHeaderHTML(title, subtitle, day) {
   const { illum, label } = moonPhaseInfo(day);
-  const starOpacity = (1 - illum * 0.55).toFixed(2); // moonlight washes out stars near full moon
+  const dayTheme = moonDayTheme(day);
   const glowSize = 30 + illum * 30;
+  const glowColor = dayTheme.moonTint === 'red' ? '248,113,113' : dayTheme.moonTint === 'blue' ? '125,211,252' : '254,249,195';
+  const moonScale = dayTheme.moonTint === 'big' ? 1.5 : 1;
   return `
-    ${starsHTML(starOpacity)}
-    <div style="position:absolute;top:20px;right:20px;pointer-events:none;animation:pulseGlow 2.5s ease-in-out infinite;">
-      <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35});">
-        ${moonPhaseSVG(day, 60, 'header')}
+    ${moonSkyHTML(day)}
+    <div style="position:absolute;top:20px;right:20px;pointer-events:none;animation:pulseGlow 2.5s ease-in-out infinite;z-index:2;">
+      <div style="width:${72 * moonScale}px;height:${72 * moonScale}px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 ${glowSize}px rgba(${glowColor},${0.3 + illum * 0.35});">
+        ${moonPhaseSVG(day, 60 * moonScale, 'header')}
       </div>
     </div>
     <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
       <div>
         <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;">${esc(title)}</h2>
-        <p class="font-mono" style="font-size:10px;color:rgba(254,249,195,0.6);margin-top:1px;">Day ${day} — ${label}</p>
+        <p class="font-mono" style="font-size:10px;color:rgba(254,249,195,0.6);margin-top:1px;">Day ${day} — ${esc(dayTheme.label)} · ${label}</p>
         <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">${esc(subtitle)}</p>
       </div>
       <button data-action="moon-close" style="width:36px;height:36px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#b2c8ed;">✕</button>
@@ -736,16 +897,18 @@ function moonHeaderHTML(title, subtitle, day) {
 
 function moonScriptEditorHTML() {
   const messages = state.owner.data.moonMessages;
+  const day = state.owner.data.moonPhaseDay;
+  const sky = moonDayTheme(day).sky;
   return `
-  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--page-bg);">
+  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:${sky};">
     ${themeExtrasHTML(state.owner.data.theme)}
-    ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨', state.owner.data.moonPhaseDay)}
+    ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨', day)}
     <div class="glass" style="position:relative;z-index:10;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">
       <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Pick the night's sky (1-30)</p>
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
         ${MOON_PHASE_DAYS.map(d => `
-          <button data-action="pick-moon-day" data-day="${d}" title="Day ${d} — ${moonPhaseInfo(d).label}"
-            style="flex-shrink:0;width:30px;height:30px;border-radius:50%;border:${d === state.owner.data.moonPhaseDay ? '2px solid var(--accent)' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
+          <button data-action="pick-moon-day" data-day="${d}" title="Day ${d} — ${esc(moonDayTheme(d).label)} (${moonPhaseInfo(d).label})"
+            style="flex-shrink:0;width:30px;height:30px;border-radius:50%;border:${d === day ? '2px solid var(--accent)' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
             ${moonPhaseSVG(d, 24, `pick-${d}`)}
           </button>`).join('')}
       </div>
@@ -774,10 +937,12 @@ function moonScriptEditorHTML() {
 
 function moonScriptViewHTML() {
   const messages = state.recipient.data.moonMessages;
+  const day = state.recipient.data.moonPhaseDay;
+  const sky = moonDayTheme(day).sky;
   return `
-  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--page-bg);">
+  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:${sky};">
     ${themeExtrasHTML(state.recipient.data.theme)}
-    ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️', state.recipient.data.moonPhaseDay)}
+    ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️', day)}
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">Nothing written yet...</p>` : ''}
       ${messages.map(m => moonBubbleHTML(m, false)).join('')}

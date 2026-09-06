@@ -158,6 +158,14 @@ button, input, textarea { font-family: inherit; }
 @keyframes starFall { to { transform: translate3d(-30em,0,0); } }
 @keyframes starTailFade { 0%, 50% { width: var(--star-tail-length); opacity: 1; } 70%, 80% { width: 0; opacity: 0.4; } 100% { width: 0; opacity: 0; } }
 @keyframes starBlink { 50% { opacity: 0.6; } }
+@keyframes moonDotTwinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+@keyframes auroraWave { 0%, 100% { transform: translateX(0) scaleY(1); opacity: 0.55; } 50% { transform: translateX(4%) scaleY(1.15); opacity: 0.85; } }
+@keyframes cometMove { 0% { transform: translate(-10vw,-10vh); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translate(70vw,60vh); opacity: 0; } }
+@keyframes lightningFlash { 0%, 92%, 100% { opacity: 0; } 94%, 97% { opacity: 0.5; } }
+@keyframes satelliteMove { 0% { transform: translate(-5vw,10vh); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(105vw,25vh); opacity: 0; } }
+@keyframes starburstPop { 0%, 85% { transform: scale(0); opacity: 0; } 90% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
+@keyframes fogDrift { 0% { transform: translateX(-10%); } 100% { transform: translateX(10%); } }
+@keyframes galaxySpin { to { transform: rotate(360deg); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
