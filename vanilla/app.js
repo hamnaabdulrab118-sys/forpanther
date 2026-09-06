@@ -6,6 +6,7 @@
 //   Panther opens URL → app reads "main" from Firestore → shows letters
 // ═══════════════════════════════════════════════════════════════════════
 import { loadData, saveData, signInOwner, uploadMusicFile } from './db.js';
+import { mountMoonIcon, unmountMoonIcon, mountMoonSky, unmountMoonSky } from './moon3d.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
 const OWNER_PIN = '5425';
@@ -379,6 +380,15 @@ function afterRender(view) {
   if (view === 'moon') {
     const box = root.querySelector('#moon-messages');
     if (box) box.scrollTop = box.scrollHeight;
+    const data = (state.isRecipient && state.recipient.data) ? state.recipient.data : state.owner.data;
+    const effect = skyEffect(data.skyEffectId);
+    const iconCanvas = root.querySelector('#moon-3d-icon');
+    if (iconCanvas) mountMoonIcon(iconCanvas, data.moonPhaseDay);
+    const skyCanvas = root.querySelector('#moon-3d-sky');
+    if (skyCanvas) mountMoonSky(skyCanvas, { density: effect.dots, extra: effect.extra });
+  } else {
+    unmountMoonIcon();
+    unmountMoonSky();
   }
   const musicEl = root.querySelector('#letter-music-player');
   if (musicEl) musicEl.play().catch(() => {}); // autoplay can be blocked; controls stay visible either way
@@ -765,29 +775,10 @@ const SKY_COLORS = [
 ];
 
 // Stable random seeds for the sky primitives (generated once, reused across renders)
-const SKY_DOT_SEED = Array.from({ length: 80 }, () => ({
-  x: rnd() * 100, y: rnd() * 70, size: rnd() * 2.2 + 0.8,
-  dur: rnd() * 3 + 2, delay: rnd() * 5, opacity: rnd() * 0.5 + 0.4,
-}));
-const SKY_CLUSTER_SEED = Array.from({ length: 3 }, () => {
-  const cx = rnd() * 80 + 10, cy = rnd() * 50 + 5;
-  return Array.from({ length: 6 }, () => ({
-    x: cx + (rnd() - 0.5) * 12, y: cy + (rnd() - 0.5) * 10, size: rnd() * 2 + 1,
-    dur: rnd() * 2 + 2, delay: rnd() * 4, opacity: rnd() * 0.4 + 0.5,
-  }));
-}).flat();
 const FIREFLY_SEED = Array.from({ length: 14 }, () => ({ x: rnd() * 100, y: 20 + rnd() * 60, dur: 3 + rnd() * 3, delay: rnd() * 4 }));
 const SNOW_SEED = Array.from({ length: 24 }, () => ({ x: rnd() * 100, dur: 6 + rnd() * 6, delay: rnd() * 8, size: 2 + rnd() * 2 }));
 const STARBURST_SEED = { x: 20 + rnd() * 60, y: 15 + rnd() * 40 };
 
-function skyDotsHTML(density) {
-  const counts = { none: 0, sparse: 6, few: 15, normal: 35, many: 80, quiet: 5 };
-  const dots = density === 'cluster' ? SKY_CLUSTER_SEED : SKY_DOT_SEED.slice(0, counts[density] || 0);
-  const mult = (density === 'quiet' ? 2.2 : 1) * 2.6; // glow diameter, bigger than the old flat dot
-  // Radial-gradient orb (bright core → soft falloff) instead of a flat circle
-  // + box-shadow — reads as a luminous 3D point rather than a flat sticker.
-  return dots.map(s => `<div style="position:absolute;left:${s.x}%;top:${s.y}%;width:${s.size * mult}px;height:${s.size * mult}px;border-radius:50%;background:radial-gradient(circle at 35% 35%,white,rgba(255,255,255,0.55) 45%,transparent 75%);opacity:${s.opacity};animation:moonDotTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite;"></div>`).join('');
-}
 function skyShootingHTML(mode) {
   let subset;
   if (mode === 'few') subset = SHOOTING_STAR_DATA.slice(0, 8);
@@ -800,10 +791,6 @@ function skyShootingHTML(mode) {
     `<div class="star" style="--star-tail-length:${tail}em;--top-offset:${top}vh;--fall-duration:${dur}s;--fall-delay:${delay}s;"><div class="star-head"></div></div>`
   ).join('');
   return `<div class="shooting-stars-bg">${stars}</div>`;
-}
-function planetsHTML() {
-  return `<div style="position:absolute;left:38%;top:30%;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8a87c,#b5502e);box-shadow:0 0 10px rgba(181,80,46,0.7);"></div>
-    <div style="position:absolute;left:58%;top:22%;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8d5b0,#a67c3d);box-shadow:0 0 14px rgba(166,124,61,0.6);"></div>`;
 }
 function satelliteHTML() {
   return `<div style="position:absolute;width:3px;height:3px;border-radius:50%;background:white;box-shadow:0 0 6px 2px white;animation:satelliteMove 14s linear infinite;"></div>`;
@@ -855,15 +842,8 @@ function starburstHTML() {
 function fogHTML() {
   return `<div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(150,160,180,0.18) 60%,rgba(150,160,180,0.3));animation:fogDrift 18s ease-in-out infinite alternate;"></div>`;
 }
-function ringsHTML() {
-  return `<div style="position:absolute;left:70%;top:60%;width:60px;height:60px;">
-    <div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f3e0b8,#c9a25a);box-shadow:0 0 10px rgba(201,162,90,0.6);"></div>
-    <div style="position:absolute;top:50%;left:50%;width:100px;height:20px;border:2px solid rgba(233,209,150,0.6);border-radius:50%;transform:translate(-50%,-50%) rotate(-15deg);"></div>
-  </div>`;
-}
 function moonExtraHTML(extra) {
   switch (extra) {
-    case 'planets': return planetsHTML();
     case 'satellite': return satelliteHTML();
     case 'aurora': return auroraHTML(false);
     case 'rainbow': return auroraHTML(true);
@@ -879,7 +859,6 @@ function moonExtraHTML(extra) {
     case 'lightning': return lightningHTML();
     case 'starburst': return starburstHTML();
     case 'fog': return fogHTML();
-    case 'rings': return ringsHTML();
     default: return '';
   }
 }
@@ -891,7 +870,12 @@ function skyColor(id) {
 }
 function moonSkyHTML(effectId) {
   const t = skyEffect(effectId);
-  return `${skyShootingHTML(t.shooting)}<div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;">${skyDotsHTML(t.dots)}${moonExtraHTML(t.extra)}</div>`;
+  // Star dots + "planets"/"rings" are real 3D now (see moon3d.js) — the flat
+  // dots/planets/rings 2D fallbacks are skipped; the other atmospheric extras
+  // (aurora, nebula, comet, fog, etc.) stay CSS/SVG overlays on top.
+  const is3dExtra = t.extra === 'planets' || t.extra === 'rings';
+  return `${skyShootingHTML(t.shooting)}<canvas id="moon-3d-sky" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
+    <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;">${is3dExtra ? '' : moonExtraHTML(t.extra)}</div>`;
 }
 
 // ── Moon chat (owner-scripted; Panther just reads it) ──────────────────────
@@ -938,10 +922,8 @@ function moonHeaderHTML(title, subtitle, moonDay, effectId) {
   const glowSize = 30 + illum * 30;
   return `
     ${moonSkyHTML(effectId)}
-    <div style="position:absolute;top:20px;right:20px;pointer-events:none;animation:pulseGlow 2.5s ease-in-out infinite;z-index:2;">
-      <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35});">
-        ${moonPhaseSVG(moonDay, 60, 'header')}
-      </div>
+    <div style="position:absolute;top:20px;right:20px;pointer-events:none;z-index:2;filter:drop-shadow(0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35}));">
+      <canvas id="moon-3d-icon" width="72" height="72" style="width:72px;height:72px;display:block;"></canvas>
     </div>
     <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
       <div>
