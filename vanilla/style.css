@@ -146,6 +146,11 @@ button, input, textarea { font-family: inherit; }
 }
 .star::before { transform: rotate(45deg); }
 .star::after { transform: rotate(-45deg); }
+.star-head {
+  position: absolute; left: -3px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, white 0%, currentColor 55%, transparent 80%);
+}
 
 /* Seasonal theme particles */
 .particles-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
