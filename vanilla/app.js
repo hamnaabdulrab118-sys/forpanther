@@ -904,7 +904,7 @@ function moonBubbleHTML(m, ownerControls) {
           style="${EDITOR_INPUT_STYLE}font-size:14px;">${esc(state.moonEditor.editingText)}</textarea>
         <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end;">
           <button data-action="moon-edit-cancel" class="font-mono" style="padding:6px 12px;border-radius:10px;background:rgba(178,200,237,0.08);border:none;color:#b2c8ed;font-size:11px;cursor:pointer;">Cancel</button>
-          <button data-action="moon-edit-save" data-id="${esc(m.id)}" class="font-mono" style="padding:6px 12px;border-radius:10px;background:var(--accent);border:none;color:#000d20;font-size:11px;font-weight:700;cursor:pointer;">Save</button>
+          <button data-action="moon-edit-save" data-id="${esc(m.id)}" class="font-mono" style="padding:6px 12px;border-radius:10px;background:#e9c349;border:none;color:#000d20;font-size:11px;font-weight:700;cursor:pointer;">Save</button>
         </div>
       </div>
     </div>`;
@@ -914,7 +914,7 @@ function moonBubbleHTML(m, ownerControls) {
     ${m.from === 'moon' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;font-size:16px;">🌙</div>` : ''}
     <div style="max-width:280px;">
       <div class="${m.from === 'dino' ? '' : 'font-serif'}" style="padding:12px 18px;border-radius:22px;font-size:14px;line-height:1.6;
-        background:${m.from === 'dino' ? 'var(--accent)' : 'rgba(3,28,57,0.8)'};color:${m.from === 'dino' ? '#000d20' : '#eef4ff'};font-weight:${m.from === 'dino' ? 500 : 400};
+        background:${m.from === 'dino' ? '#e9c349' : 'rgba(3,28,57,0.8)'};color:${m.from === 'dino' ? '#000d20' : '#eef4ff'};font-weight:${m.from === 'dino' ? 500 : 400};
         border-bottom-right-radius:${m.from === 'dino' ? '6px' : '22px'};border-bottom-left-radius:${m.from === 'moon' ? '6px' : '22px'};
         border:${m.from === 'moon' ? '1px solid rgba(251,191,36,0.15)' : 'none'};">
         ${esc(m.text)}
@@ -926,7 +926,7 @@ function moonBubbleHTML(m, ownerControls) {
     ${m.from === 'dino' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;font-size:16px;">🦖</div>` : ''}
     ${ownerControls ? `
       <div style="display:flex;flex-direction:column;gap:4px;justify-content:center;">
-        <button data-action="moon-edit-start" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(var(--accent-rgb),0.15);border:none;cursor:pointer;font-size:10px;color:var(--accent);">✎</button>
+        <button data-action="moon-edit-start" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(233,195,73,0.15);border:none;cursor:pointer;font-size:10px;color:#e9c349;">✎</button>
         <button data-action="moon-delete" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.15);border:none;cursor:pointer;font-size:10px;color:#f87171;">×</button>
       </div>` : ''}
   </div>`;
@@ -961,7 +961,6 @@ function moonScriptEditorHTML() {
   const sky = skyColor(colorId).css;
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:${sky};">
-    ${themeExtrasHTML(state.owner.data.theme)}
     ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨', moonDay, effectId)}
     <div class="glass" style="position:relative;z-index:10;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:10px;">
       <div>
@@ -969,7 +968,7 @@ function moonScriptEditorHTML() {
         <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
           ${MOON_PHASE_DAYS.map(d => `
             <button data-action="pick-moon-day" data-day="${d}" title="Day ${d} — ${moonPhaseInfo(d).label}"
-              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${d === moonDay ? '2px solid var(--accent)' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
+              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${d === moonDay ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
               ${moonPhaseSVG(d, 22, `pick-${d}`)}
             </button>`).join('')}
         </div>
@@ -979,7 +978,7 @@ function moonScriptEditorHTML() {
         <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
           ${SKY_EFFECTS.map((e, i) => `
             <button data-action="pick-sky-effect" data-effect="${i + 1}" title="${esc(e.label)}"
-              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === effectId ? '2px solid var(--accent)' : '2px solid transparent'};cursor:pointer;background:#0a1220;font-size:13px;display:flex;align-items:center;justify-content:center;">
+              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === effectId ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:#0a1220;font-size:13px;display:flex;align-items:center;justify-content:center;">
               ${e.icon}
             </button>`).join('')}
         </div>
@@ -989,7 +988,7 @@ function moonScriptEditorHTML() {
         <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
           ${SKY_COLORS.map((c, i) => `
             <button data-action="pick-sky-color" data-color="${i + 1}" title="${esc(c.label)}"
-              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === colorId ? '2px solid var(--accent)' : '2px solid transparent'};cursor:pointer;background:${c.css};padding:0;"></button>`).join('')}
+              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === colorId ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:${c.css};padding:0;"></button>`).join('')}
         </div>
       </div>
     </div>
@@ -1001,8 +1000,8 @@ function moonScriptEditorHTML() {
       <div style="display:flex;gap:8px;align-items:center;">
         <span style="font-size:16px;flex-shrink:0;">🦖</span>
         <input type="text" value="${esc(state.moonEditor.dinoDraft)}" data-scope="moonEditor" data-field="dinoDraft" data-role="moon-dino-input" placeholder="Add a line as Dino..." class="font-serif"
-          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(var(--accent-rgb),0.18);border-radius:20px;padding:11px 16px;color:#eef4ff;font-size:13px;outline:none;" />
-        <button data-action="moon-add-dino" ${!state.moonEditor.dinoDraft.trim() ? 'disabled' : ''} class="btn-gold" style="padding:10px 16px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;flex-shrink:0;">Add</button>
+          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(233,195,73,0.18);border-radius:20px;padding:11px 16px;color:#eef4ff;font-size:13px;outline:none;" />
+        <button data-action="moon-add-dino" ${!state.moonEditor.dinoDraft.trim() ? 'disabled' : ''} class="font-mono" style="padding:10px 16px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;flex-shrink:0;background:#e9c349;color:#000d20;">Add</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span style="font-size:16px;flex-shrink:0;">🌙</span>
@@ -1022,7 +1021,6 @@ function moonScriptViewHTML() {
   const sky = skyColor(state.recipient.data.skyColorId).css;
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:${sky};">
-    ${themeExtrasHTML(state.recipient.data.theme)}
     ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️', moonDay, effectId)}
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">Nothing written yet...</p>` : ''}
