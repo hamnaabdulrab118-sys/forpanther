@@ -255,20 +255,30 @@ function emptyStateHTML(msg, emoji) {
   return `<div style="text-align:center;padding:80px 0;"><div style="font-size:56px;margin-bottom:16px;">${emoji}</div><p class="font-mono" style="color:rgba(178,200,237,0.35);font-size:14px;">${esc(msg)}</p></div>`;
 }
 
-// ── Stars background (stable across renders) ───────────────────────────
+// ── Shooting-star background (site-wide default, stable across renders) ───
 const rnd = Math.random;
-const GLOBAL_STARS = Array.from({ length: 150 }, (_, i) => ({
-  id: i, x: rnd() * 100, y: rnd() * 100, size: rnd() * 2.4 + 0.3,
-  dur: rnd() * 3 + 2, delay: rnd() * 5, opacity: rnd() * 0.6 + 0.2,
-}));
-const GLOBAL_SHOOTING = Array.from({ length: 5 }, (_, i) => ({
-  id: i, x: rnd() * 50 + 5, y: rnd() * 30 + 2, delay: i * 5 + rnd() * 4,
-}));
+// [tailLength(em), topOffset(vh), fallDuration(s), fallDelay(s)] — hand-tuned
+// values from the "Shooting Star" CodePen (alphardex), kept verbatim.
+const SHOOTING_STAR_DATA = [
+  [7.02,35.89,10.057,0.018],[6.71,9.71,10.509,0.483],[6.12,84.35,9.098,5.232],[6.12,74.48,9.343,9.942],
+  [6.82,92.25,8.439,0.152],[6.03,66.03,9.147,1.491],[7.08,23.28,6.553,7.178],[5.27,35.72,7.969,6.256],
+  [7.23,38.08,11.884,9.286],[5,91.8,8.923,5.079],[6.21,97,10.307,8.606],[5.16,50.91,9.377,0.889],
+  [7.32,76.73,7.725,0.657],[5.22,75.39,10.783,4.359],[7.2,14.59,9.865,3.224],[5.44,84.95,8.572,0.601],
+  [5.54,44.86,7.921,1.542],[5.72,41.88,7.326,3.13],[6.61,92.41,6.741,8.985],[7.07,97.49,10.135,9.468],
+  [5.16,62.53,11.79,9.069],[5.57,58.86,10.388,6.736],[6.66,70.01,7.583,1.495],[6.41,40.62,8.185,4.553],
+  [6.43,20.12,8.568,3.683],[6.81,12.18,10.264,5.49],[6.75,50.11,7.73,7.199],[5.33,45.66,8.764,3.558],
+  [5.69,72.54,6.689,1.599],[7,87.17,7.358,5.061],[5.15,57.09,6.506,1.416],[5.12,97.36,9.355,9.791],
+  [6.27,6.95,9.321,5.083],[5.06,90.01,10.469,7.925],[5.26,0.48,10.121,2.85],[5.25,80.04,10.184,7.085],
+  [7.12,13.88,7.689,0.07],[6.29,66.9,11.999,7.911],[5.43,1.59,11.958,5.085],[5.04,63.63,9.484,7.908],
+  [5.41,64.06,6.29,5.286],[7.03,84.38,10.566,2.129],[5.39,59.43,8.484,7.551],[6.26,24.68,9.633,1.431],
+  [5.95,75.79,11.684,6.407],[5.24,50.42,7.988,7.555],[7.49,63.84,9.711,2.579],[6.23,55.32,6.868,8.953],
+  [5.28,33.53,6.389,6.785],[6.84,51.55,7.825,3.472],
+];
 function starsHTML() {
-  return `<div class="stars-bg">` +
-    GLOBAL_STARS.map(s => `<div class="star-dot" style="left:${s.x}%;top:${s.y}%;width:${s.size}px;height:${s.size}px;opacity:${s.opacity};animation:twinkle ${s.dur}s ease-in-out ${s.delay}s infinite;"></div>`).join('') +
-    GLOBAL_SHOOTING.map(s => `<div class="shooting-star" style="left:${s.x}%;top:${s.y}%;animation:shooting 2.5s ease-out ${s.delay}s infinite;"><div></div></div>`).join('') +
-    `</div>`;
+  const stars = SHOOTING_STAR_DATA.map(([tail, top, dur, delay]) =>
+    `<div class="star" style="--star-tail-length:${tail}em;--top-offset:${top}vh;--fall-duration:${dur}s;--fall-delay:${delay}s;"></div>`
+  ).join('');
+  return `<div class="shooting-stars-bg">${stars}</div>`;
 }
 
 // ── App-wide month theme ─────────────────────────────────────────────────
@@ -296,16 +306,6 @@ function themeExtrasHTML(themeId) {
     return `<span class="particle ${t.motion}" style="${posStyle}font-size:${p.size}px;animation-duration:${p.dur}s;animation-delay:${p.delay}s;">${t.particle}</span>`;
   }).join('');
   return `<div class="particles-bg">${particles}</div>${t.icon ? `<div class="theme-icon-badge">${t.icon}</div>` : ''}`;
-}
-
-const MOON_STARS = Array.from({ length: 120 }, (_, i) => ({
-  id: i, x: rnd() * 100, y: rnd() * 75, s: rnd() * 2 + 0.3,
-  d: rnd() * 3 + 2, dl: rnd() * 5, op: rnd() * 0.6 + 0.2,
-}));
-function moonStarsHTML() {
-  let html = MOON_STARS.map(s => `<div style="position:absolute;left:${s.x}%;top:${s.y}%;width:${s.s}px;height:${s.s}px;border-radius:50%;background:white;opacity:${s.op};animation:twinkle ${s.d}s ease-in-out ${s.dl}s infinite;pointer-events:none;"></div>`).join('');
-  html += [0, 1, 2].map(i => `<div style="position:absolute;left:${8 + i * 22}%;top:${4 + i * 4}%;animation:shooting 2.5s ease-out ${i * 8 + 3}s infinite;pointer-events:none;"><div style="width:1px;height:72px;background:linear-gradient(to bottom,white,transparent);transform:rotate(35deg);opacity:0.7;"></div></div>`).join('');
-  return html;
 }
 
 // ── State ────────────────────────────────────────────────────────────────
@@ -682,7 +682,7 @@ function moonBubbleHTML(m, ownerControls) {
 
 function moonHeaderHTML(title, subtitle) {
   return `
-    ${moonStarsHTML()}
+    ${starsHTML()}
     <div style="position:absolute;top:20px;right:20px;pointer-events:none;animation:pulseGlow 2.5s ease-in-out infinite;">
       <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#fef9c3,#fde68a,#fbbf24);box-shadow:0 0 40px rgba(251,191,36,0.55);">
         <span style="font-size:36px;">🌙</span>
