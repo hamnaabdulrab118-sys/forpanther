@@ -20,6 +20,7 @@ const DEFAULT_DATA = {
   hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false },
   bouquet: { flowers: [], wrapping: 'gold', note: '', background: { type: 'preset', value: 'night' } },
   theme: 'classic',
+  moonPhaseDay: 15, // 1-30, drives the Moon Chat sky (1=new moon, 15=full moon)
 };
 
 const LABELS = [
@@ -274,11 +275,12 @@ const SHOOTING_STAR_DATA = [
   [5.95,75.79,11.684,6.407],[5.24,50.42,7.988,7.555],[7.49,63.84,9.711,2.579],[6.23,55.32,6.868,8.953],
   [5.28,33.53,6.389,6.785],[6.84,51.55,7.825,3.472],
 ];
-function starsHTML() {
+function starsHTML(opacity) {
   const stars = SHOOTING_STAR_DATA.map(([tail, top, dur, delay]) =>
     `<div class="star" style="--star-tail-length:${tail}em;--top-offset:${top}vh;--fall-duration:${dur}s;--fall-delay:${delay}s;"></div>`
   ).join('');
-  return `<div class="shooting-stars-bg">${stars}</div>`;
+  const opacityStyle = opacity != null ? ` style="opacity:${opacity};"` : '';
+  return `<div class="shooting-stars-bg"${opacityStyle}>${stars}</div>`;
 }
 
 // ── App-wide month theme ─────────────────────────────────────────────────
@@ -642,6 +644,37 @@ function lightboxOverlayHTML(photos) {
   </div>`;
 }
 
+// ── 30-day moon phase (drives the Moon Chat sky) ────────────────────────────
+const MOON_PHASE_DAYS = Array.from({ length: 30 }, (_, i) => i + 1);
+function moonPhaseInfo(day) {
+  const angle = (2 * Math.PI * day) / 30; // 0 = new, π = full, 2π = new again
+  const illum = (1 - Math.cos(angle)) / 2; // 0..1
+  const waxing = day <= 15;
+  let label;
+  if (illum < 0.05) label = 'New Moon';
+  else if (illum < 0.45) label = waxing ? 'Waxing Crescent' : 'Waning Crescent';
+  else if (illum < 0.55) label = waxing ? 'First Quarter' : 'Last Quarter';
+  else if (illum < 0.95) label = waxing ? 'Waxing Gibbous' : 'Waning Gibbous';
+  else label = 'Full Moon';
+  return { illum, waxing, label };
+}
+// Two overlapping circles clipped to a shared boundary — a common lightweight
+// approximation for a moon phase silhouette (not astronomically exact, but
+// smoothly and correctly progresses crescent → full → crescent over 30 days).
+function moonPhaseSVG(day, size, uid) {
+  const { illum, waxing } = moonPhaseInfo(day);
+  const r = size / 2 - 1;
+  const cx = size / 2, cy = size / 2;
+  const dx = (waxing ? 1 : -1) * 2 * r * (1 - illum);
+  const clipId = `moonclip-${uid}`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow:visible;display:block;">
+    <defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${r}" /></clipPath></defs>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#1a2438" />
+    <circle cx="${cx + dx}" cy="${cy}" r="${r}" fill="#fef9c3" clip-path="url(#${clipId})" />
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+  </svg>`;
+}
+
 // ── Moon chat (owner-scripted; Panther just reads it) ──────────────────────
 function moonBubbleHTML(m, ownerControls) {
   if (ownerControls && state.moonEditor.editingId === m.id) {
@@ -680,17 +713,21 @@ function moonBubbleHTML(m, ownerControls) {
   </div>`;
 }
 
-function moonHeaderHTML(title, subtitle) {
+function moonHeaderHTML(title, subtitle, day) {
+  const { illum, label } = moonPhaseInfo(day);
+  const starOpacity = (1 - illum * 0.55).toFixed(2); // moonlight washes out stars near full moon
+  const glowSize = 30 + illum * 30;
   return `
-    ${starsHTML()}
+    ${starsHTML(starOpacity)}
     <div style="position:absolute;top:20px;right:20px;pointer-events:none;animation:pulseGlow 2.5s ease-in-out infinite;">
-      <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#fef9c3,#fde68a,#fbbf24);box-shadow:0 0 40px rgba(251,191,36,0.55);">
-        <span style="font-size:36px;">🌙</span>
+      <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35});">
+        ${moonPhaseSVG(day, 60, 'header')}
       </div>
     </div>
     <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
       <div>
         <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;">${esc(title)}</h2>
+        <p class="font-mono" style="font-size:10px;color:rgba(254,249,195,0.6);margin-top:1px;">Day ${day} — ${label}</p>
         <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">${esc(subtitle)}</p>
       </div>
       <button data-action="moon-close" style="width:36px;height:36px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#b2c8ed;">✕</button>
@@ -702,7 +739,17 @@ function moonScriptEditorHTML() {
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--page-bg);">
     ${themeExtrasHTML(state.owner.data.theme)}
-    ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨')}
+    ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨', state.owner.data.moonPhaseDay)}
+    <div class="glass" style="position:relative;z-index:10;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Pick the night's sky (1-30)</p>
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
+        ${MOON_PHASE_DAYS.map(d => `
+          <button data-action="pick-moon-day" data-day="${d}" title="Day ${d} — ${moonPhaseInfo(d).label}"
+            style="flex-shrink:0;width:30px;height:30px;border-radius:50%;border:${d === state.owner.data.moonPhaseDay ? '2px solid var(--accent)' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
+            ${moonPhaseSVG(d, 24, `pick-${d}`)}
+          </button>`).join('')}
+      </div>
+    </div>
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">No lines yet — add the first one below</p>` : ''}
       ${messages.map(m => moonBubbleHTML(m, true)).join('')}
@@ -730,7 +777,7 @@ function moonScriptViewHTML() {
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--page-bg);">
     ${themeExtrasHTML(state.recipient.data.theme)}
-    ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️')}
+    ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️', state.recipient.data.moonPhaseDay)}
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">Nothing written yet...</p>` : ''}
       ${messages.map(m => moonBubbleHTML(m, false)).join('')}
@@ -1371,6 +1418,9 @@ async function pickTheme(id) {
   applyTheme(id); // instant preview, doesn't wait on the save
   await persist({ ...state.owner.data, theme: id });
 }
+async function pickMoonDay(day) {
+  await persist({ ...state.owner.data, moonPhaseDay: day });
+}
 async function addBouquetFlower(id) {
   const bq = state.owner.data.bouquet;
   if (bq.flowers.length >= MAX_FLOWERS) return;
@@ -1519,6 +1569,7 @@ function handleClick(e) {
     case 'lightbox-next': moveLightbox(1); break;
     case 'update-cities': updateCities(); break;
     case 'pick-theme': pickTheme(el.dataset.theme); break;
+    case 'pick-moon-day': pickMoonDay(Number(el.dataset.day)); break;
     case 'editor-cancel': cancelEditor(); break;
     case 'editor-save': saveLetterFromEditor(); break;
     case 'editor-delete': {
