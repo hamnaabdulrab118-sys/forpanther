@@ -718,30 +718,51 @@ function flowerSVG(f, size) {
   </svg>`;
 }
 
-// A proper paper-cone wrap: wavy/torn top edge, sides tapering to a rounded
-// gathered bottom, subtle fold-crease lines, and a ribbon bow — instead of a
-// flat clip-path triangle.
+// A proper florist paper wrap: bell-curved cone silhouette (not a straight
+// triangle), a second sheet peeking out behind, a folded-over top flap, fold
+// creases, and a real ribbon bow with tails — not a flat clip-path shape.
 function wrappingSVG(wrapC) {
-  const top = shadeColor(wrapC.color, 35);
+  const light = shadeColor(wrapC.color, 45);
   const base = wrapC.color;
-  const dark = shadeColor(wrapC.color, -35);
+  const dark = shadeColor(wrapC.color, -30);
+  const darker = shadeColor(wrapC.color, -50);
+  const back = shadeColor(wrapC.color, 55);
   const gradId = `wrapGrad-${wrapC.id}`;
-  return `<svg width="200" height="172" viewBox="0 0 200 172" style="overflow:visible;display:block;">
+  const flapId = `wrapFlap-${wrapC.id}`;
+  return `<svg width="100%" height="100%" viewBox="0 0 220 196" style="overflow:visible;display:block;">
     <defs>
-      <linearGradient id="${gradId}" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="${top}" />
-        <stop offset="55%" stop-color="${base}" />
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0.6" y2="1">
+        <stop offset="0%" stop-color="${light}" />
+        <stop offset="45%" stop-color="${base}" />
         <stop offset="100%" stop-color="${dark}" />
       </linearGradient>
+      <linearGradient id="${flapId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${dark}" />
+        <stop offset="100%" stop-color="${darker}" />
+      </linearGradient>
     </defs>
-    <path d="M10 8 C40 -4 70 16 100 6 C130 -4 160 16 190 8 L132 152 Q100 166 68 152 Z" fill="url(#${gradId})" stroke="${dark}" stroke-width="1" opacity="0.97" />
-    <path d="M100 152 L42 8" stroke="${dark}" stroke-width="1" opacity="0.22" fill="none" />
-    <path d="M100 152 L100 6" stroke="${dark}" stroke-width="1" opacity="0.22" fill="none" />
-    <path d="M100 152 L158 8" stroke="${dark}" stroke-width="1" opacity="0.22" fill="none" />
-    <path d="M20 44 Q100 36 180 44 L178 58 Q100 50 22 58 Z" fill="#e9c349" opacity="0.94" />
-    <ellipse cx="84" cy="51" rx="17" ry="10" fill="#e9c349" transform="rotate(-22 84 51)" />
-    <ellipse cx="116" cy="51" rx="17" ry="10" fill="#e9c349" transform="rotate(22 116 51)" />
-    <circle cx="100" cy="51" r="7" fill="#c9a13a" />
+
+    <path d="M14 34 C0 70 20 128 100 190 C185 128 208 70 196 34 C150 50 55 50 14 34 Z"
+      fill="${back}" opacity="0.85" transform="rotate(-7 108 100)" />
+
+    <path d="M22 26 C6 62 28 118 108 186 C193 118 214 62 198 26 C158 40 60 40 22 26 Z"
+      fill="url(#${gradId})" stroke="${dark}" stroke-width="1" />
+
+    <path d="M108 186 C90 130 70 78 40 32" stroke="${darker}" stroke-width="1" opacity="0.25" fill="none" />
+    <path d="M108 186 L108 34" stroke="${darker}" stroke-width="1" opacity="0.22" fill="none" />
+    <path d="M108 186 C126 130 146 78 178 32" stroke="${darker}" stroke-width="1" opacity="0.25" fill="none" />
+
+    <path d="M22 26 C60 40 158 40 198 26 C176 4 150 -6 108 -4 C66 -6 42 4 22 26 Z"
+      fill="url(#${flapId})" opacity="0.96" />
+    <path d="M22 26 C60 40 158 40 198 26" stroke="${darker}" stroke-width="1" opacity="0.3" fill="none" />
+
+    <path d="M14 58 Q110 44 206 58 L202 76 Q110 62 18 76 Z" fill="#e9c349" />
+    <path d="M14 58 Q110 44 206 58" stroke="#c9a13a" stroke-width="1" opacity="0.5" fill="none" />
+    <path d="M108 92 C88 74 52 74 44 92 C52 108 88 105 108 92 Z" fill="#f0d878" stroke="#c9a13a" stroke-width="1" />
+    <path d="M108 92 C128 74 164 74 172 92 C164 108 128 105 108 92 Z" fill="#f0d878" stroke="#c9a13a" stroke-width="1" />
+    <path d="M108 92 L94 128 L106 120 Z" fill="#e0c060" />
+    <path d="M108 92 L122 128 L110 120 Z" fill="#e0c060" />
+    <circle cx="108" cy="92" r="10" fill="#c9a13a" />
   </svg>`;
 }
 
@@ -752,18 +773,18 @@ function flowerClusterHTML(bouquet, editable) {
     const pos = BOUQUET_POSITIONS[i] || { x: 0, y: 0, r: 0 };
     const delay = (i % 6) * 0.35;
     return `<div ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
-      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${148 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);${editable ? 'cursor:pointer;' : ''}">
+      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${164 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);${editable ? 'cursor:pointer;' : ''}">
       <div style="animation:bloomIn 0.45s ease-out, flowerSway ${3.5 + (i % 3) * 0.4}s ease-in-out ${delay}s infinite;">
         ${flowerSVG(f, 52)}
       </div>
     </div>`;
   }).join('');
   return `
-  <div style="position:relative;width:260px;height:300px;margin:0 auto;">
+  <div style="position:relative;width:280px;height:320px;margin:0 auto;">
     ${flowerHTML}
-    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:190px;filter:drop-shadow(0 12px 22px rgba(0,0,0,0.4));">${wrappingSVG(wrapC)}</div>
+    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:190px;height:170px;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.4));">${wrappingSVG(wrapC)}</div>
     ${bouquet.note ? `
-      <div style="position:absolute;right:6px;bottom:56px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
+      <div style="position:absolute;right:2px;bottom:78px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
         <p class="font-serif" style="font-size:11px;color:#2c1d11;font-style:italic;">"${esc(bouquet.note)}"</p>
       </div>` : ''}
   </div>`;
