@@ -19,6 +19,7 @@ const DEFAULT_DATA = {
   moonMessages: [],
   hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false },
   bouquet: { flowers: [], wrapping: 'gold', note: '', background: { type: 'preset', value: 'night' } },
+  theme: 'classic',
 };
 
 const LABELS = [
@@ -93,6 +94,28 @@ const BACKGROUND_PRESETS = [
   { id: 'garden', label: 'Garden', css: 'linear-gradient(180deg,#0d2818 0%,#1a4d2e 60%,#2d6a3e 100%)' },
 ];
 
+// ── App-wide month themes ───────────────────────────────────────────────
+// Each recolors the accent (gold buttons/borders/highlights everywhere) and
+// the page background via CSS variables, plus adds a signature corner icon
+// and a field of falling/floating seasonal particles. "classic" (the
+// original gold/navy look) stays the default so nothing changes unless the
+// owner picks one in Settings.
+const THEMES = [
+  { id: 'classic', label: 'Classic', month: null, accent: '#e9c349', accentRgb: '233,195,73', pageBg: 'linear-gradient(180deg,#000005 0%,#000814 30%,#000d20 70%,#001a3d 100%)', icon: '', particle: '', motion: 'fall' },
+  { id: 'january', label: 'January — Frost', month: 1, accent: '#a5d8ff', accentRgb: '165,216,255', pageBg: 'linear-gradient(180deg,#020810 0%,#0a1a2e 45%,#13324d 100%)', icon: '❄️', particle: '❄️', motion: 'fall' },
+  { id: 'february', label: 'February — Sweetheart', month: 2, accent: '#fb7185', accentRgb: '251,113,133', pageBg: 'linear-gradient(180deg,#1a0510 0%,#3d0f24 45%,#5c1a35 100%)', icon: '💌', particle: '💗', motion: 'float' },
+  { id: 'march', label: 'March — Bloom', month: 3, accent: '#f0879a', accentRgb: '240,135,154', pageBg: 'linear-gradient(180deg,#0d1f14 0%,#1f3d28 45%,#3d5c3a 100%)', icon: '🌸', particle: '🌸', motion: 'fall' },
+  { id: 'april', label: 'April — Showers', month: 4, accent: '#7dd3fc', accentRgb: '125,211,252', pageBg: 'linear-gradient(180deg,#04101c 0%,#0d2438 45%,#1a3d52 100%)', icon: '🌦️', particle: '💧', motion: 'fall' },
+  { id: 'may', label: 'May — Garden', month: 5, accent: '#86efac', accentRgb: '134,239,172', pageBg: 'linear-gradient(180deg,#071a0d 0%,#123d1f 45%,#1f5c30 100%)', icon: '🦋', particle: '🌼', motion: 'float' },
+  { id: 'june', label: 'June — Sunbeam', month: 6, accent: '#fbbf24', accentRgb: '251,191,36', pageBg: 'linear-gradient(180deg,#1a1002 0%,#3d2408 45%,#5c3a10 100%)', icon: '☀️', particle: '✨', motion: 'float' },
+  { id: 'july', label: 'July — Tide', month: 7, accent: '#38bdf8', accentRgb: '56,189,248', pageBg: 'linear-gradient(180deg,#01141a 0%,#053040 45%,#0a4d5c 100%)', icon: '🌊', particle: '🫧', motion: 'float' },
+  { id: 'august', label: 'August — Harvest Gold', month: 8, accent: '#d97706', accentRgb: '217,119,6', pageBg: 'linear-gradient(180deg,#1a1002 0%,#3d2a08 45%,#5c4210 100%)', icon: '🌾', particle: '✨', motion: 'float' },
+  { id: 'september', label: 'September — Amber Leaves', month: 9, accent: '#f97316', accentRgb: '249,115,22', pageBg: 'linear-gradient(180deg,#1a0d02 0%,#3d2008 45%,#5c3010 100%)', icon: '🍂', particle: '🍂', motion: 'fall' },
+  { id: 'october', label: 'October — Maple', month: 10, accent: '#ea580c', accentRgb: '234,88,12', pageBg: 'linear-gradient(180deg,#170502 0%,#3d1208 45%,#5c1c0f 100%)', icon: '🍁', particle: '🍁', motion: 'fall' },
+  { id: 'november', label: 'November — Cozy Amber', month: 11, accent: '#c9784f', accentRgb: '201,120,79', pageBg: 'linear-gradient(180deg,#120a05 0%,#2e1b0f 45%,#452a18 100%)', icon: '🕯️', particle: '🍂', motion: 'fall' },
+  { id: 'december', label: 'December — Snowfall', month: 12, accent: '#cfe8ff', accentRgb: '207,232,255', pageBg: 'linear-gradient(180deg,#000005 0%,#000814 40%,#000d20 100%)', icon: '⛄', particle: '❄️', motion: 'fall' },
+];
+
 // Hand-tuned offsets (relative to the top of the wrapping) for up to 12 flowers,
 // growing outward in a fan so the cluster still looks intentional at any count.
 const BOUQUET_POSITIONS = [
@@ -132,7 +155,7 @@ const OWNER_TABS = [
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ];
 
-const PAGE_STYLE = "min-height:100vh;background:linear-gradient(180deg,#000005 0%,#000814 30%,#000d20 70%,#001a3d 100%);position:relative;";
+const PAGE_STYLE = "min-height:100vh;background:var(--page-bg);position:relative;";
 const INNER_STYLE = "position:relative;z-index:10;max-width:680px;margin:0 auto;padding:0 16px 100px;";
 const OWNER_INPUT_STYLE = "width:100%;background:rgba(0,13,32,0.75);border:1px solid rgba(178,200,237,0.14);border-radius:14px;padding:12px 16px;color:#eef4ff;font-size:14px;outline:none;font-family:inherit;";
 const EDITOR_INPUT_STYLE = "width:100%;background:rgba(0,13,32,0.7);border:1px solid rgba(178,200,237,0.15);border-radius:14px;padding:12px 16px;color:#eef4ff;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.2s;";
@@ -248,6 +271,33 @@ function starsHTML() {
     `</div>`;
 }
 
+// ── App-wide month theme ─────────────────────────────────────────────────
+function getTheme(id) {
+  return THEMES.find(t => t.id === id) || THEMES[0];
+}
+function applyTheme(id) {
+  const t = getTheme(id);
+  const el = document.documentElement.style;
+  el.setProperty('--accent', t.accent);
+  el.setProperty('--accent-rgb', t.accentRgb);
+  el.setProperty('--page-bg', t.pageBg);
+}
+const PARTICLE_SEED = Array.from({ length: 22 }, () => ({
+  x: rnd() * 100, delay: rnd() * 10, dur: 6 + rnd() * 6, size: 14 + rnd() * 10, top: rnd() * 60,
+}));
+// Falling/floating seasonal particles plus a small signature corner icon.
+// Layered alongside the starfield, not replacing it — the stars are the
+// app's core "same sky" motif regardless of theme.
+function themeExtrasHTML(themeId) {
+  const t = getTheme(themeId);
+  if (!t.particle) return '';
+  const particles = PARTICLE_SEED.map(p => {
+    const posStyle = t.motion === 'fall' ? `left:${p.x}%;` : `left:${p.x}%;top:${p.top}%;`;
+    return `<span class="particle ${t.motion}" style="${posStyle}font-size:${p.size}px;animation-duration:${p.dur}s;animation-delay:${p.delay}s;">${t.particle}</span>`;
+  }).join('');
+  return `<div class="particles-bg">${particles}</div>${t.icon ? `<div class="theme-icon-badge">${t.icon}</div>` : ''}`;
+}
+
 const MOON_STARS = Array.from({ length: 120 }, (_, i) => ({
   id: i, x: rnd() * 100, y: rnd() * 75, s: rnd() * 2 + 0.3,
   d: rnd() * 3 + 2, dl: rnd() * 5, op: rnd() * 0.6 + 0.2,
@@ -334,7 +384,7 @@ function afterRender(view) {
 function pinScreenHTML() {
   const { digits, error, shaking } = state.pin;
   return `
-  <div style="min-height:100vh;background:linear-gradient(180deg,#000005 0%,#000814 40%,#000d20 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
+  <div style="min-height:100vh;background:var(--page-bg);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
     ${starsHTML()}
     <div style="position:relative;z-index:10;width:100%;max-width:380px;padding:0 24px;display:flex;flex-direction:column;align-items:center;gap:32px;">
       <div style="text-align:center;animation:slideUp 0.5s ease-out forwards;">
@@ -342,23 +392,23 @@ function pinScreenHTML() {
         <h1 class="font-serif gold-glow" style="font-size:42px;font-weight:700;color:#ffddb0;margin-bottom:6px;">For Panther</h1>
         <p class="font-serif" style="color:#b2c8ed;font-size:14px;font-style:italic;">From your Dino, with love ✈️</p>
         <div class="glass-gold font-mono" style="margin-top:14px;display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:999px;font-size:12px;color:#b2c8ed;">
-          <span style="color:#e9c349;">📍</span> Sialkot
-          <span style="color:#e9c349;">✈️</span> Ormara
-          <span style="color:#e9c349;font-weight:700;">· 730 km</span>
+          <span style="color:var(--accent);">📍</span> Sialkot
+          <span style="color:var(--accent);">✈️</span> Ormara
+          <span style="color:var(--accent);font-weight:700;">· 730 km</span>
         </div>
       </div>
 
       <div class="glass-gold" style="width:100%;border-radius:28px;padding:36px;box-shadow:0 24px 60px rgba(0,0,0,0.5);animation:slideUp 0.5s 0.1s ease-out forwards;opacity:0;">
         <div style="text-align:center;margin-bottom:28px;">
           <div style="font-size:32px;margin-bottom:8px;">🔐</div>
-          <p class="font-mono" style="font-size:11px;color:#e9c349;letter-spacing:0.2em;text-transform:uppercase;">Enter Access Code</p>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);letter-spacing:0.2em;text-transform:uppercase;">Enter Access Code</p>
         </div>
 
         <div class="${shaking ? 'do-shake' : ''}" style="display:flex;justify-content:center;gap:14px;margin-bottom:16px;">
           ${[0, 1, 2, 3].map(i => {
             const d = digits[i];
-            const borderColor = error ? '#f87171' : d ? '#e9c349' : 'rgba(178,200,237,0.2)';
-            const boxShadow = d ? '0 0 14px rgba(233,195,73,0.3)' : 'none';
+            const borderColor = error ? '#f87171' : d ? 'var(--accent)' : 'rgba(178,200,237,0.2)';
+            const boxShadow = d ? '0 0 14px rgba(var(--accent-rgb),0.3)' : 'none';
             return `<input type="password" inputmode="numeric" maxlength="1" value="${esc(d)}" data-role="pin-digit" data-index="${i}" class="font-mono"
               style="width:58px;height:68px;text-align:center;font-size:30px;font-weight:700;background:rgba(0,13,32,0.85);border:2px solid ${borderColor};border-radius:16px;color:#ffddb0;outline:none;box-shadow:${boxShadow};transition:all 0.2s;" />`;
           }).join('')}
@@ -386,7 +436,7 @@ function recipientLoadingHTML() {
       <h2 class="font-serif" style="font-size:24px;font-weight:700;color:#ffddb0;margin-bottom:10px;">Opening your letter...</h2>
       <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:24px;">Loading across the miles from Sialkot to Ormara</p>
       <div style="display:flex;justify-content:center;gap:8px;">
-        ${[0, 1, 2].map(i => `<div style="width:10px;height:10px;border-radius:50%;background:#e9c349;animation:bounceDot 1s ease-in-out ${i * 0.15}s infinite;"></div>`).join('')}
+        ${[0, 1, 2].map(i => `<div style="width:10px;height:10px;border-radius:50%;background:var(--accent);animation:bounceDot 1s ease-in-out ${i * 0.15}s infinite;"></div>`).join('')}
       </div>
     </div>
   </div>`;
@@ -421,16 +471,17 @@ function recipientViewHTML() {
   return `
   <div style="${PAGE_STYLE}">
     ${starsHTML()}
+    ${themeExtrasHTML(d.theme)}
     <div style="${INNER_STYLE}">
       <div style="padding-top:48px;padding-bottom:32px;text-align:center;animation:slideUp 0.5s ease-out;">
         <div style="font-size:64px;margin-bottom:14px;display:inline-block;animation:float 6s ease-in-out infinite;">🦖🐾</div>
         <h1 class="font-serif gold-glow" style="font-size:44px;font-weight:700;color:#ffddb0;margin-bottom:8px;">For Panther</h1>
         <p class="font-serif" style="color:#b2c8ed;font-size:15px;font-style:italic;margin-bottom:20px;">From your Dino, written under the same sky ✈️</p>
         <div class="glass-gold font-mono" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:999px;font-size:13px;color:#b2c8ed;">
-          <span style="color:#e9c349;">📍</span>${esc(d.fromCity)}
-          <span style="color:#e9c349;">✈️</span>${esc(toLabel)}
+          <span style="color:var(--accent);">📍</span>${esc(d.fromCity)}
+          <span style="color:var(--accent);">✈️</span>${esc(toLabel)}
           <span style="color:rgba(178,200,237,0.35);">·</span>
-          <span style="color:#e9c349;font-weight:700;">${kmLabel} km</span>
+          <span style="color:var(--accent);font-weight:700;">${kmLabel} km</span>
           <span style="color:rgba(178,200,237,0.35);">·</span>
           <span style="font-style:italic;opacity:0.6;">same sky 🌙</span>
         </div>
@@ -441,7 +492,7 @@ function recipientViewHTML() {
         ${tabs.map(t => `
           <button data-action="recipient-tab" data-tab="${t.id}" class="font-mono"
             style="flex:1;padding:11px 8px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;
-            background:${tab === t.id ? '#e9c349' : 'transparent'};color:${tab === t.id ? '#000d20' : 'rgba(178,200,237,0.5)'};transition:all 0.2s;">
+            background:${tab === t.id ? 'var(--accent)' : 'transparent'};color:${tab === t.id ? '#000d20' : 'rgba(178,200,237,0.5)'};transition:all 0.2s;">
             ${t.emoji} ${esc(t.label)}
           </button>`).join('')}
       </div>
@@ -489,7 +540,7 @@ function envelopeCardHTML(letter, isOwner) {
     ${isOwner && !letter.isPublished ? `<div class="font-mono" style="position:absolute;bottom:58px;left:14px;font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);">draft</div>` : ''}
     ${isOwner ? `
       <div style="position:absolute;top:10px;right:10px;display:flex;gap:5px;">
-        <button data-action="edit-letter" data-id="${esc(letter.id)}" style="width:28px;height:28px;border-radius:50%;background:#e9c349;border:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:#000d20;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.4);">✎</button>
+        <button data-action="edit-letter" data-id="${esc(letter.id)}" style="width:28px;height:28px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:#000d20;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.4);">✎</button>
         <button data-action="delete-letter" data-id="${esc(letter.id)}" style="width:28px;height:28px;border-radius:50%;background:rgba(239,68,68,0.8);border:none;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.4);">×</button>
       </div>` : ''}
   </div>`;
@@ -563,7 +614,7 @@ function galleryGridHTML(photos, isOwner) {
         <div class="gallery-caption">
           <div style="position:absolute;bottom:0;left:0;right:0;padding:12px;">
             <p class="font-serif" style="color:white;font-size:12px;font-style:italic;margin-bottom:2px;">"${esc(p.caption)}"</p>
-            <p class="font-mono" style="color:#e9c349;font-size:10px;">📍 ${esc(p.location)}</p>
+            <p class="font-mono" style="color:var(--accent);font-size:10px;">📍 ${esc(p.location)}</p>
           </div>
         </div>
         ${isOwner ? `<button data-action="delete-photo" data-id="${esc(p.id)}" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;background:rgba(239,68,68,0.8);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;opacity:0.85;">🗑</button>` : ''}
@@ -581,7 +632,7 @@ function lightboxOverlayHTML(photos) {
       <img src="${esc(p.url)}" alt="" style="width:100%;border-radius:24px;box-shadow:0 32px 80px rgba(0,0,0,0.8);display:block;" />
       <div style="margin-top:16px;text-align:center;">
         <p class="font-serif" style="color:white;font-size:16px;font-style:italic;">"${esc(p.caption)}"</p>
-        <p class="font-mono" style="color:#e9c349;font-size:12px;margin-top:6px;">📍 ${esc(p.location)} · ${esc(p.date)}</p>
+        <p class="font-mono" style="color:var(--accent);font-size:12px;margin-top:6px;">📍 ${esc(p.location)} · ${esc(p.date)}</p>
       </div>
       <button data-action="close-lightbox" style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.1);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
       ${photos.length > 1 ? `
@@ -601,7 +652,7 @@ function moonBubbleHTML(m, ownerControls) {
           style="${EDITOR_INPUT_STYLE}font-size:14px;">${esc(state.moonEditor.editingText)}</textarea>
         <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end;">
           <button data-action="moon-edit-cancel" class="font-mono" style="padding:6px 12px;border-radius:10px;background:rgba(178,200,237,0.08);border:none;color:#b2c8ed;font-size:11px;cursor:pointer;">Cancel</button>
-          <button data-action="moon-edit-save" data-id="${esc(m.id)}" class="font-mono" style="padding:6px 12px;border-radius:10px;background:#e9c349;border:none;color:#000d20;font-size:11px;font-weight:700;cursor:pointer;">Save</button>
+          <button data-action="moon-edit-save" data-id="${esc(m.id)}" class="font-mono" style="padding:6px 12px;border-radius:10px;background:var(--accent);border:none;color:#000d20;font-size:11px;font-weight:700;cursor:pointer;">Save</button>
         </div>
       </div>
     </div>`;
@@ -611,7 +662,7 @@ function moonBubbleHTML(m, ownerControls) {
     ${m.from === 'moon' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;font-size:16px;">🌙</div>` : ''}
     <div style="max-width:280px;">
       <div class="${m.from === 'dino' ? '' : 'font-serif'}" style="padding:12px 18px;border-radius:22px;font-size:14px;line-height:1.6;
-        background:${m.from === 'dino' ? '#e9c349' : 'rgba(3,28,57,0.8)'};color:${m.from === 'dino' ? '#000d20' : '#eef4ff'};font-weight:${m.from === 'dino' ? 500 : 400};
+        background:${m.from === 'dino' ? 'var(--accent)' : 'rgba(3,28,57,0.8)'};color:${m.from === 'dino' ? '#000d20' : '#eef4ff'};font-weight:${m.from === 'dino' ? 500 : 400};
         border-bottom-right-radius:${m.from === 'dino' ? '6px' : '22px'};border-bottom-left-radius:${m.from === 'moon' ? '6px' : '22px'};
         border:${m.from === 'moon' ? '1px solid rgba(251,191,36,0.15)' : 'none'};">
         ${esc(m.text)}
@@ -623,7 +674,7 @@ function moonBubbleHTML(m, ownerControls) {
     ${m.from === 'dino' ? `<div style="width:34px;height:34px;border-radius:50%;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;font-size:16px;">🦖</div>` : ''}
     ${ownerControls ? `
       <div style="display:flex;flex-direction:column;gap:4px;justify-content:center;">
-        <button data-action="moon-edit-start" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(233,195,73,0.15);border:none;cursor:pointer;font-size:10px;color:#e9c349;">✎</button>
+        <button data-action="moon-edit-start" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(var(--accent-rgb),0.15);border:none;cursor:pointer;font-size:10px;color:var(--accent);">✎</button>
         <button data-action="moon-delete" data-id="${esc(m.id)}" style="width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.15);border:none;cursor:pointer;font-size:10px;color:#f87171;">×</button>
       </div>` : ''}
   </div>`;
@@ -649,7 +700,8 @@ function moonHeaderHTML(title, subtitle) {
 function moonScriptEditorHTML() {
   const messages = state.owner.data.moonMessages;
   return `
-  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:linear-gradient(180deg,#000005 0%,#000814 50%,#000d20 100%);">
+  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--page-bg);">
+    ${themeExtrasHTML(state.owner.data.theme)}
     ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨')}
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">No lines yet — add the first one below</p>` : ''}
@@ -659,7 +711,7 @@ function moonScriptEditorHTML() {
       <div style="display:flex;gap:8px;align-items:center;">
         <span style="font-size:16px;flex-shrink:0;">🦖</span>
         <input type="text" value="${esc(state.moonEditor.dinoDraft)}" data-scope="moonEditor" data-field="dinoDraft" data-role="moon-dino-input" placeholder="Add a line as Dino..." class="font-serif"
-          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(233,195,73,0.18);border-radius:20px;padding:11px 16px;color:#eef4ff;font-size:13px;outline:none;" />
+          style="flex:1;background:rgba(0,13,32,0.8);border:1px solid rgba(var(--accent-rgb),0.18);border-radius:20px;padding:11px 16px;color:#eef4ff;font-size:13px;outline:none;" />
         <button data-action="moon-add-dino" ${!state.moonEditor.dinoDraft.trim() ? 'disabled' : ''} class="btn-gold" style="padding:10px 16px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;flex-shrink:0;">Add</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -676,7 +728,8 @@ function moonScriptEditorHTML() {
 function moonScriptViewHTML() {
   const messages = state.recipient.data.moonMessages;
   return `
-  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:linear-gradient(180deg,#000005 0%,#000814 50%,#000d20 100%);">
+  <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--page-bg);">
+    ${themeExtrasHTML(state.recipient.data.theme)}
     ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️')}
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">Nothing written yet...</p>` : ''}
@@ -756,7 +809,7 @@ function wrappingSVG(wrapC) {
       fill="url(#${flapId})" opacity="0.96" />
     <path d="M22 26 C60 40 158 40 198 26" stroke="${darker}" stroke-width="1" opacity="0.3" fill="none" />
 
-    <path d="M14 58 Q110 44 206 58 L202 76 Q110 62 18 76 Z" fill="#e9c349" />
+    <path d="M14 58 Q110 44 206 58 L202 76 Q110 62 18 76 Z" fill="var(--accent)" />
     <path d="M14 58 Q110 44 206 58" stroke="#c9a13a" stroke-width="1" opacity="0.5" fill="none" />
     <path d="M108 92 C88 74 52 74 44 92 C52 108 88 105 108 92 Z" fill="#f0d878" stroke="#c9a13a" stroke-width="1" />
     <path d="M108 92 C128 74 164 74 172 92 C164 108 128 105 108 92 Z" fill="#f0d878" stroke="#c9a13a" stroke-width="1" />
@@ -810,7 +863,7 @@ function bouquetBuilderHTML() {
 
     <div style="position:relative;z-index:10;max-width:600px;margin:0 auto;padding:0 16px 110px;display:flex;flex-direction:column;gap:16px;">
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Quick-start templates</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Quick-start templates</p>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
           ${BOUQUET_TEMPLATES.map(t => `
             <button data-action="bouquet-apply-template" data-template="${t.id}" class="font-mono"
@@ -822,7 +875,7 @@ function bouquetBuilderHTML() {
       </div>
 
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Flowers</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Flowers</p>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
           ${FLOWER_OPTIONS.map(f => `
             <button data-action="bouquet-add-flower" data-flower="${f.id}" ${full ? 'disabled' : ''} title="${f.label}"
@@ -831,7 +884,7 @@ function bouquetBuilderHTML() {
       </div>
 
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Wrapping</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Wrapping</p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           ${WRAPPING_OPTIONS.map(w => `
             <button data-action="bouquet-pick-wrapping" data-wrap="${w.id}" title="${w.label}"
@@ -842,13 +895,13 @@ function bouquetBuilderHTML() {
       </div>
 
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Mini Note</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Mini Note</p>
         <input type="text" value="${esc(state.bouquetForm.note)}" data-scope="bouquetForm" data-field="note" placeholder="A little note to tuck in..." class="font-serif" style="${OWNER_INPUT_STYLE}margin-bottom:10px;" />
         <button data-action="bouquet-save-note" class="btn-gold font-mono" style="width:100%;padding:10px 0;border-radius:14px;border:none;cursor:pointer;font-size:12px;">Save Note</button>
       </div>
 
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Background</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Background</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
           ${BACKGROUND_PRESETS.map(p => `
             <button data-action="bouquet-pick-bg-preset" data-bg="${p.id}" title="${p.label}"
@@ -858,7 +911,7 @@ function bouquetBuilderHTML() {
         <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-bottom:8px;">Or paste your own background image URL:</p>
         <div style="display:flex;gap:10px;">
           <input type="text" value="${esc(state.bouquetForm.bgUrl)}" data-scope="bouquetForm" data-field="bgUrl" placeholder="https://..." class="font-mono" style="${OWNER_INPUT_STYLE}flex:1;font-size:12px;" />
-          <button data-action="bouquet-set-bg-custom" class="font-mono" style="padding:10px 16px;border-radius:14px;border:1px solid rgba(233,195,73,0.25);background:rgba(233,195,73,0.1);color:#e9c349;cursor:pointer;font-size:12px;white-space:nowrap;">Use this</button>
+          <button data-action="bouquet-set-bg-custom" class="font-mono" style="padding:10px 16px;border-radius:14px;border:1px solid rgba(var(--accent-rgb),0.25);background:rgba(var(--accent-rgb),0.1);color:var(--accent);cursor:pointer;font-size:12px;white-space:nowrap;">Use this</button>
         </div>
       </div>
     </div>
@@ -902,21 +955,21 @@ function letterEditorHTML() {
     stepHTML = `
     <div class="glass-gold" style="border-radius:28px;padding:28px;display:flex;flex-direction:column;gap:24px;animation:fadeIn 0.3s ease-out;">
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Choose a label:</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Choose a label:</p>
         <div style="max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
           ${LABELS.map(lb => `
             <button data-action="editor-pick-label" data-label="${esc(lb)}" class="font-mono" style="text-align:left;padding:11px 16px;border-radius:14px;font-size:13px;cursor:pointer;
-              background:${l.label === lb ? 'rgba(233,195,73,0.15)' : 'rgba(178,200,237,0.04)'};
-              border:${l.label === lb ? '1px solid rgba(233,195,73,0.6)' : '1px solid transparent'};
-              color:${l.label === lb ? '#e9c349' : '#b2c8ed'};transition:all 0.15s;">${esc(lb)}</button>`).join('')}
+              background:${l.label === lb ? 'rgba(var(--accent-rgb),0.15)' : 'rgba(178,200,237,0.04)'};
+              border:${l.label === lb ? '1px solid rgba(var(--accent-rgb),0.6)' : '1px solid transparent'};
+              color:${l.label === lb ? 'var(--accent)' : '#b2c8ed'};transition:all 0.15s;">${esc(lb)}</button>`).join('')}
         </div>
       </div>
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Or write your own:</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Or write your own:</p>
         <input type="text" value="${esc(l.label)}" data-scope="editor" data-field="label" placeholder="Open when..." class="font-mono" style="${EDITOR_INPUT_STYLE}" />
       </div>
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Envelope color:</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Envelope color:</p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           ${ENVELOPE_COLORS.map(c => `
             <button data-action="editor-pick-color" data-color="${c.id}" title="${c.label}" style="width:40px;height:40px;border-radius:50%;background:${c.color};border:none;cursor:pointer;
@@ -933,19 +986,19 @@ function letterEditorHTML() {
     stepHTML = `
     <div class="glass-gold" style="border-radius:28px;padding:28px;display:flex;flex-direction:column;gap:20px;animation:fadeIn 0.3s ease-out;">
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Greeting:</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Greeting:</p>
         <input type="text" value="${esc(l.greeting)}" data-scope="editor" data-field="greeting" placeholder="My Dearest Panther," class="font-serif" style="${EDITOR_INPUT_STYLE}" />
       </div>
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Sign off:</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Sign off:</p>
         <input type="text" value="${esc(l.signOff)}" data-scope="editor" data-field="signOff" placeholder="Forever yours, Dino 🖤" class="font-serif" style="${EDITOR_INPUT_STYLE}" />
       </div>
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Date stamp (auto):</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Date stamp (auto):</p>
         <p class="font-serif" style="color:#b2c8ed;font-size:14px;padding:12px 16px;">${esc(l.date)}</p>
       </div>
       <div>
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Your letter:</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Your letter:</p>
         <textarea rows="10" data-scope="editor" data-field="content" placeholder="Pour your heart out here... Tell him how much he means to you." class="font-serif"
           style="${EDITOR_INPUT_STYLE}resize:vertical;line-height:1.9;font-size:15px;">${esc(l.content)}</textarea>
       </div>
@@ -1012,13 +1065,13 @@ function letterEditorHTML() {
       <div style="display:grid;grid-template-columns:repeat(6, 1fr);gap:10px;">
         ${STICKERS.map(s => `
           <button data-action="editor-toggle-sticker" data-sticker="${s}" style="font-size:24px;width:48px;height:48px;border-radius:14px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
-            background:${l.stickers.includes(s) ? 'rgba(233,195,73,0.2)' : 'rgba(178,200,237,0.06)'};
-            outline:${l.stickers.includes(s) ? '2px solid rgba(233,195,73,0.6)' : '2px solid transparent'};
+            background:${l.stickers.includes(s) ? 'rgba(var(--accent-rgb),0.2)' : 'rgba(178,200,237,0.06)'};
+            outline:${l.stickers.includes(s) ? '2px solid rgba(var(--accent-rgb),0.6)' : '2px solid transparent'};
             transform:${l.stickers.includes(s) ? 'scale(1.1)' : 'scale(1)'};transition:all 0.15s;">${s}</button>`).join('')}
       </div>
       ${l.stickers.length > 0 ? `
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(178,200,237,0.1);">
-          <p class="font-mono" style="font-size:11px;color:#e9c349;margin-bottom:10px;">Your stickers (${l.stickers.length}):</p>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);margin-bottom:10px;">Your stickers (${l.stickers.length}):</p>
           <div style="display:flex;flex-wrap:wrap;gap:8px;">
             ${l.stickers.map(s => `<button data-action="editor-toggle-sticker" data-sticker="${s}" style="font-size:24px;border:none;background:none;cursor:pointer;opacity:0.8;">${s}</button>`).join('')}
           </div>
@@ -1060,12 +1113,13 @@ function letterEditorHTML() {
   }
 
   return `
-  <div style="min-height:100vh;background:linear-gradient(180deg,#000005,#000814,#000d20);position:relative;">
+  <div style="min-height:100vh;background:var(--page-bg);position:relative;">
     ${starsHTML()}
+    ${themeExtrasHTML(state.owner.data.theme)}
     <div style="position:relative;z-index:10;max-width:680px;margin:0 auto;padding:24px 16px 100px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Step ${step}/${EDITOR_STEPS.length} — ${EDITOR_STEPS[step - 1]}</p>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Step ${step}/${EDITOR_STEPS.length} — ${EDITOR_STEPS[step - 1]}</p>
           <h2 class="font-serif" style="font-size:26px;font-weight:700;color:white;">${isEditing ? 'Edit Letter' : 'New Letter ✍️'}</h2>
         </div>
         <button data-action="editor-cancel" style="width:36px;height:36px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#b2c8ed;">✕</button>
@@ -1074,8 +1128,8 @@ function letterEditorHTML() {
       <div style="display:flex;gap:8px;margin-bottom:28px;overflow-x:auto;padding-bottom:4px;">
         ${EDITOR_STEPS.map((s, i) => `
           <button data-action="editor-step" data-step="${i + 1}" class="font-mono" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:11px;border:none;cursor:pointer;
-            background:${step === i + 1 ? '#e9c349' : step > i + 1 ? 'rgba(233,195,73,0.15)' : 'rgba(178,200,237,0.06)'};
-            color:${step === i + 1 ? '#000d20' : step > i + 1 ? '#e9c349' : 'rgba(178,200,237,0.4)'};
+            background:${step === i + 1 ? 'var(--accent)' : step > i + 1 ? 'rgba(var(--accent-rgb),0.15)' : 'rgba(178,200,237,0.06)'};
+            color:${step === i + 1 ? '#000d20' : step > i + 1 ? 'var(--accent)' : 'rgba(178,200,237,0.4)'};
             font-weight:${step === i + 1 ? 700 : 400};transition:all 0.2s;">${i + 1}. ${s}</button>`).join('')}
       </div>
 
@@ -1104,7 +1158,7 @@ function ownerStudioHTML() {
   if (tab === 'home') {
     tabHTML = `
     <div style="display:flex;flex-direction:column;gap:16px;animation:fadeIn 0.3s ease-out;">
-      <div class="glass-gold" style="border-radius:28px;padding:28px;border:1px solid rgba(233,195,73,0.18);">
+      <div class="glass-gold" style="border-radius:28px;padding:28px;border:1px solid rgba(var(--accent-rgb),0.18);">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;">
           <div style="font-size:44px;animation:float 6s ease-in-out infinite;">🦖🐾</div>
           <div>
@@ -1118,13 +1172,13 @@ function ownerStudioHTML() {
           <p class="font-mono" style="font-size:12px;color:${data.isPublished ? '#4ade80' : '#fbbf24'};">${data.isPublished ? 'Published — Panther can open your letters' : 'Draft — not yet shared with Panther'}</p>
         </div>
         <button data-action="publish" ${state.owner.saving ? 'disabled' : ''} class="btn-gold font-mono" style="width:100%;padding:16px 0;border-radius:20px;font-size:14px;border:none;cursor:pointer;margin-bottom:14px;letter-spacing:0.04em;
-          background:${state.owner.pubOk ? '#4ade80' : state.owner.saving ? 'rgba(233,195,73,0.5)' : '#e9c349'};color:${state.owner.pubOk ? 'white' : '#000d20'};">
+          background:${state.owner.pubOk ? '#4ade80' : state.owner.saving ? 'rgba(var(--accent-rgb),0.5)' : 'var(--accent)'};color:${state.owner.pubOk ? 'white' : '#000d20'};">
           ${state.owner.saving ? 'Saving...' : state.owner.pubOk ? '✓ Published!' : data.isPublished ? '↑ Update Gift' : '🚀 Publish for Panther'}
         </button>
         <div style="display:flex;gap:10px;margin-bottom:12px;">
           <input readonly value="${esc(url)}" class="font-mono" style="${OWNER_INPUT_STYLE}flex:1;padding:10px 14px;font-size:12px;color:#b2c8ed;" />
           <button data-action="copy-link" class="font-mono" style="padding:10px 16px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;
-            background:${state.owner.copied ? '#4ade80' : 'rgba(233,195,73,0.12)'};color:${state.owner.copied ? 'white' : '#e9c349'};display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all 0.2s;">
+            background:${state.owner.copied ? '#4ade80' : 'rgba(var(--accent-rgb),0.12)'};color:${state.owner.copied ? 'white' : 'var(--accent)'};display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all 0.2s;">
             ${state.owner.copied ? '✓ Copied!' : '⧉ Copy'}
           </button>
         </div>
@@ -1162,7 +1216,7 @@ function ownerStudioHTML() {
     <div style="animation:fadeIn 0.3s ease-out;">
       <h2 class="font-serif" style="font-size:22px;font-weight:700;color:white;margin-bottom:20px;">Gallery (${data.gallery.length})</h2>
       <div class="glass-gold" style="border-radius:24px;padding:22px;margin-bottom:20px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Add a photo</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Add a photo</p>
         <input type="text" value="${esc(state.newPhoto.url)}" data-scope="newPhoto" data-field="url" placeholder="Paste image URL..." class="font-mono" style="${OWNER_INPUT_STYLE}margin-bottom:10px;font-size:13px;" />
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
           <input type="text" value="${esc(state.newPhoto.caption)}" data-scope="newPhoto" data-field="caption" placeholder="Caption..." class="font-serif" style="${OWNER_INPUT_STYLE}font-size:13px;" />
@@ -1177,7 +1231,7 @@ function ownerStudioHTML() {
     <div style="display:flex;flex-direction:column;gap:16px;animation:fadeIn 0.3s ease-out;">
       <h2 class="font-serif" style="font-size:22px;font-weight:700;color:white;">Settings</h2>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px;">Distance</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px;">Distance</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
           <div>
             <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-bottom:6px;">Your city (Dino):</p>
@@ -1191,7 +1245,7 @@ function ownerStudioHTML() {
         <button data-action="update-cities" class="btn-gold font-mono" style="width:100%;padding:12px 0;border-radius:16px;border:none;cursor:pointer;font-size:13px;">Update Cities</button>
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
         ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['moon', 'Talk to Moon']].map(([t, label]) => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(178,200,237,0.06);">
             <span class="font-mono" style="font-size:13px;color:#b2c8ed;">${label}</span>
@@ -1203,10 +1257,24 @@ function ownerStudioHTML() {
         <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-top:10px;">Toggle off to hide a screen from Panther's gift link.</p>
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
-        <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Share Info</p>
-        <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:8px;">Owner PIN: <span style="color:#e9c349;font-weight:700;font-size:16px;">${OWNER_PIN}</span></p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">App Theme</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+          ${THEMES.map(t => `
+            <button data-action="pick-theme" data-theme="${t.id}" class="font-mono" title="${esc(t.label)}"
+              style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;cursor:pointer;
+              background:${data.theme === t.id ? `rgba(${t.accentRgb},0.18)` : 'rgba(178,200,237,0.05)'};
+              border:${data.theme === t.id ? `1px solid ${t.accent}` : '1px solid transparent'};">
+              <span style="width:18px;height:18px;border-radius:50%;background:${t.accent};display:block;"></span>
+              <span style="font-size:9px;color:#b2c8ed;">${t.icon || '✨'}</span>
+            </button>`).join('')}
+        </div>
+        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-top:10px;">Recolors the whole app and adds seasonal touches. Hover a swatch for its name.</p>
+      </div>
+      <div class="glass-gold" style="border-radius:24px;padding:24px;">
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Share Info</p>
+        <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:8px;">Owner PIN: <span style="color:var(--accent);font-weight:700;font-size:16px;">${OWNER_PIN}</span></p>
         <p class="font-mono" style="font-size:12px;color:rgba(178,200,237,0.4);margin-bottom:12px;word-break:break-all;">Panther's link: <span style="color:#7dd3fc;">${esc(url)}</span></p>
-        <button data-action="copy-link" class="font-mono" style="padding:10px 20px;border-radius:14px;background:rgba(233,195,73,0.1);border:1px solid rgba(233,195,73,0.25);color:#e9c349;cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+        <button data-action="copy-link" class="font-mono" style="padding:10px 20px;border-radius:14px;background:rgba(var(--accent-rgb),0.1);border:1px solid rgba(var(--accent-rgb),0.25);color:var(--accent);cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
           ${state.owner.copied ? '✓ Copied!' : '⧉ Copy Link'}
         </button>
       </div>
@@ -1219,24 +1287,25 @@ function ownerStudioHTML() {
   return `
   <div style="${PAGE_STYLE}">
     ${starsHTML()}
+    ${themeExtrasHTML(data.theme)}
     <div style="${INNER_STYLE}">
       <div style="padding-top:24px;padding-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
-          <p class="font-mono" style="font-size:11px;color:#e9c349;text-transform:uppercase;letter-spacing:0.18em;margin-bottom:4px;">Creator Studio 🦖</p>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.18em;margin-bottom:4px;">Creator Studio 🦖</p>
           <h1 class="font-serif" style="font-size:26px;font-weight:700;color:white;">For Panther 🐾</h1>
         </div>
         <div class="glass-gold font-mono" style="padding:10px 16px;border-radius:16px;font-size:12px;color:#b2c8ed;text-align:right;">
-          <span style="color:#e9c349;">📍</span> ${esc(data.fromCity)} <span style="color:#e9c349;">✈️</span> ${esc(data.toCity)}<br />
-          <span style="color:#e9c349;font-weight:700;">${data.distanceKm} km</span> <span style="opacity:0.4;">apart</span>
+          <span style="color:var(--accent);">📍</span> ${esc(data.fromCity)} <span style="color:var(--accent);">✈️</span> ${esc(data.toCity)}<br />
+          <span style="color:var(--accent);font-weight:700;">${data.distanceKm} km</span> <span style="opacity:0.4;">apart</span>
         </div>
       </div>
       ${tabHTML}
     </div>
-    <nav style="position:fixed;bottom:0;left:0;width:100%;z-index:50;background:rgba(0,13,32,0.85);backdrop-filter:blur(16px);border-top:1px solid rgba(233,195,73,0.1);">
+    <nav style="position:fixed;bottom:0;left:0;width:100%;z-index:50;background:rgba(0,13,32,0.85);backdrop-filter:blur(16px);border-top:1px solid rgba(var(--accent-rgb),0.1);">
       <div style="display:flex;justify-content:space-around;align-items:center;padding:8px 4px 12px;max-width:680px;margin:0 auto;overflow-x:auto;">
         ${OWNER_TABS.map(t => `
           <button data-action="owner-tab" data-tab="${t.id}" class="font-mono" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 10px;border-radius:16px;border:none;cursor:pointer;font-size:10px;font-weight:600;flex-shrink:0;
-            background:${tab === t.id ? 'rgba(233,195,73,0.12)' : 'transparent'};color:${tab === t.id ? '#e9c349' : 'rgba(178,200,237,0.4)'};transition:all 0.2s;">
+            background:${tab === t.id ? 'rgba(var(--accent-rgb),0.12)' : 'transparent'};color:${tab === t.id ? 'var(--accent)' : 'rgba(178,200,237,0.4)'};transition:all 0.2s;">
             <span style="font-size:18px;">${t.icon}</span><span>${t.label}</span>
           </button>`).join('')}
       </div>
@@ -1297,6 +1366,10 @@ async function publish() {
 }
 async function updateCities() {
   await persist({ ...state.owner.data, fromCity: state.owner.cityForm.fromCity, toCity: state.owner.cityForm.toCity });
+}
+async function pickTheme(id) {
+  applyTheme(id); // instant preview, doesn't wait on the save
+  await persist({ ...state.owner.data, theme: id });
 }
 async function addBouquetFlower(id) {
   const bq = state.owner.data.bouquet;
@@ -1375,6 +1448,7 @@ async function unlock() {
     state.owner.data = normalizeData(d);
     state.owner.cityForm = { fromCity: state.owner.data.fromCity, toCity: state.owner.data.toCity };
     state.bouquetForm.note = state.owner.data.bouquet.note;
+    applyTheme(state.owner.data.theme);
     render();
   }
 }
@@ -1395,8 +1469,8 @@ function handlePinDigitInput(target) {
   const v = target.value.replace(/\D/g, '').slice(-1);
   target.value = v;
   state.pin.digits[i] = v;
-  target.style.borderColor = v ? '#e9c349' : 'rgba(178,200,237,0.2)';
-  target.style.boxShadow = v ? '0 0 14px rgba(233,195,73,0.3)' : 'none';
+  target.style.borderColor = v ? 'var(--accent)' : 'rgba(178,200,237,0.2)';
+  target.style.boxShadow = v ? '0 0 14px rgba(var(--accent-rgb),0.3)' : 'none';
   if (v && i < 3) {
     const next = target.parentElement.querySelector(`[data-index="${i + 1}"]`);
     if (next) next.focus();
@@ -1444,6 +1518,7 @@ function handleClick(e) {
     case 'lightbox-prev': moveLightbox(-1); break;
     case 'lightbox-next': moveLightbox(1); break;
     case 'update-cities': updateCities(); break;
+    case 'pick-theme': pickTheme(el.dataset.theme); break;
     case 'editor-cancel': cancelEditor(); break;
     case 'editor-save': saveLetterFromEditor(); break;
     case 'editor-delete': {
@@ -1610,6 +1685,7 @@ async function init() {
     if (d) {
       state.recipient.data = normalizeData(d);
       state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
+      applyTheme(state.recipient.data.theme);
     } else state.recipient.error = true;
     state.recipient.loading = false;
     render();
