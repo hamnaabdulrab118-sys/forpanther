@@ -510,3 +510,138 @@ SCENES.june = {
     };
   },
 };
+
+// ── July: Fireflies in the night sky ────────────────────────────────────
+// Adapted from "fireflies-in-the-night-sky" (jQuery .animate() driven).
+// Not put in a Shadow DOM like the other transplanted pens — jQuery's
+// selector engine can't reach into shadow roots — so everything here is
+// namespaced under #july-sky / .july-* to stay safely out of the rest of
+// the app's styles instead.
+SCENES.july = {
+  mount(container) {
+    let aborted = false;
+    const $ = window.jQuery;
+    if (!$) { console.error('❌ July scene: jQuery not loaded'); return () => {}; }
+
+    const style = document.createElement('style');
+    style.textContent = `
+      #july-sky { position:absolute; inset:0; overflow:hidden; background:linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,2,50,1) 100%); }
+      #july-sky .july-star { position:absolute; height:2px; width:2px; border-radius:50%; filter:blur(1px); }
+      #july-sky .july-fly-template { display:none; }
+      #july-sky .july-fly { background-color:rgb(30,30,30); position:absolute; height:15px; width:6.5px; border-radius:30%; transform:rotateZ(-40deg); z-index:300; }
+      #july-sky .july-fly.flip { transform:rotateZ(30deg) rotateY(180deg); }
+      #july-sky .july-eye { width:4px; height:2px; position:absolute; top:-4px; left:0; border-radius:50%; background:darkslategray; transform:rotateZ(10deg); }
+      #july-sky .july-fly::after { width:7px; height:5px; content:""; position:absolute; top:-4px; left:-3px; border-radius:50%; background-color:inherit; transform-origin:bottom center; transform:rotateZ(30deg); }
+      #july-sky .july-fly::before { width:6px; height:12px; content:""; position:absolute; top:10px; left:1.5px; border-radius:50%; background-color:inherit; transform-origin:top center; transform:rotateZ(20deg); }
+      #july-sky .july-leg { width:6px; height:1px; position:absolute; top:6px; left:-6px; border-radius:1px; background:inherit; transform-origin:right; transform:rotateZ(-20deg); }
+      #july-sky .july-leg:nth-child(2) { margin-top:-3px; }
+      #july-sky .july-leg:nth-child(4) { margin-top:3px; }
+      #july-sky .july-wing { width:8px; height:24px; position:absolute; top:0; left:1px; border-radius:50%; background:inherit; opacity:.5; transform-origin:top center; transform:rotateZ(-20deg); box-sizing:border-box; border:solid 1px aliceblue; animation:july-flap .1s linear infinite; }
+      #july-sky .july-light { position:absolute; border-radius:50%; height:10px; width:10px; top:14px; left:-3px; filter:blur(5px); background-color:lawngreen; z-index:10000; animation:july-blinky 10s ease-in-out infinite; }
+      @keyframes july-flap { 0%{transform:rotateZ(-30deg) rotateX(10deg) rotateY(40deg);} 50%{transform:rotateZ(-50deg) rotateX(30deg) rotateY(80deg);} 100%{transform:rotateZ(-10deg) rotateX(0) rotateY(0);} }
+      @keyframes july-blinky { 21%,39%,45%,47%,53%{opacity:.1;} 26%,38%,40%,44%,46%,48%{opacity:1;} }
+      @keyframes july-fade { 0%{opacity:.1;} 10%{opacity:.4;} 20%{opacity:.8;} 30%{opacity:1;} 70%{opacity:.8;} 80%{opacity:.4;} 90%{opacity:.1;} 100%{opacity:0;} }
+    `;
+    container.appendChild(style);
+    const sky = document.createElement('div');
+    sky.id = 'july-sky';
+    sky.innerHTML = `
+      <div class="july-fly-template">
+        <div class="july-eye"></div>
+        <div class="july-leg"></div><div class="july-leg"></div><div class="july-leg"></div><div class="july-leg"></div>
+        <div class="july-wing"></div>
+        <div class="july-light"></div>
+      </div>
+    `;
+    container.appendChild(sky);
+
+    let w, h;
+    function resize() {
+      w = container.clientWidth || window.innerWidth;
+      h = container.clientHeight || window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function spawnStar() {
+      if (aborted) return;
+      const x = Math.max(Math.floor(Math.random() * w), 10);
+      const y = Math.max(Math.floor(Math.random() * h), 10);
+      const r = Math.max(Math.floor(Math.random() * 255), 200);
+      const g = Math.max(Math.floor(Math.random() * 255), 200);
+      const b = Math.max(Math.floor(Math.random() * 255), 200);
+      const star = document.createElement('div');
+      star.className = 'july-star';
+      star.style.left = x + 'px';
+      star.style.top = y + 'px';
+      star.style.backgroundColor = `rgb(${r},${g},${b})`;
+      sky.appendChild(star);
+      if (Math.random() > 0.75) {
+        const delay = Math.max(Math.round(Math.random() * 4000), 500);
+        setTimeout(() => { if (!aborted) star.style.animation = 'july-fade 20s linear infinite'; }, delay);
+      }
+    }
+
+    function moveFly($fly) {
+      if (aborted) { $fly.stop(true); return; }
+      const left = $fly.position().left;
+      const top = $fly.position().top;
+      const size = $fly.outerWidth() + 10;
+      let dirH = parseInt($fly.attr('dirH'));
+      let dirV = parseInt($fly.attr('dirV'));
+      if (left >= w - size - 10 || left <= 10) dirH = -dirH;
+      if (top >= h - size - 10 || top <= 10) dirV = -dirV;
+      $fly.toggleClass('flip', dirH > 0);
+      $fly.animate({ left: left + dirH, top: top + dirV }, 'fast', 'linear', function () {
+        if (!aborted) setTimeout(() => moveFly($fly), 1);
+      }).attr('dirH', dirH).attr('dirV', dirV);
+    }
+
+    function spawnFly() {
+      if (aborted) return null;
+      const multiple = Math.random() * 15;
+      const dirH = Math.random() > 0.5 ? -multiple : multiple;
+      const dirV = Math.random() > 0.5 ? -multiple : multiple;
+      let r = Math.max(Math.floor(Math.random() * 255), 100);
+      let g = Math.max(Math.floor(Math.random() * 255), 100);
+      let b = Math.max(Math.floor(Math.random() * 255), 100);
+      if (r === g) b = 0; else if (r === b) g = 0; else if (b === g) r = 0;
+      const x = Math.max(Math.floor(Math.random() * w), 10);
+      const y = Math.max(Math.floor(Math.random() * h), 10);
+
+      const template = sky.querySelector('.july-fly-template');
+      const flyEl = template.cloneNode(true);
+      flyEl.classList.remove('july-fly-template');
+      flyEl.classList.add('july-fly');
+      flyEl.style.left = x + 'px';
+      flyEl.style.top = y + 'px';
+      flyEl.setAttribute('dirH', dirH);
+      flyEl.setAttribute('dirV', dirV);
+      const light = flyEl.querySelector('.july-light');
+      light.style.backgroundColor = `rgb(${r},${g},${b})`;
+      light.style.boxShadow = `inset 0 0 20px rgb(${r},${g},${b}), 0 0 10px rgb(${r},${g},${b})`;
+      sky.appendChild(flyEl);
+      $(flyEl).fadeIn();
+
+      const delay = Math.max(Math.round(Math.random() * 1000), 500);
+      setTimeout(() => {
+        if (aborted) return;
+        $(flyEl).fadeOut('slow', 'linear', () => flyEl.remove());
+        moveFly($(spawnFly()));
+      }, delay * 10);
+
+      return flyEl;
+    }
+
+    for (let i = 0; i < 300; i++) spawnStar();
+    for (let i = 0; i < 10; i++) {
+      const delay = Math.max(Math.round(Math.random() * 1000), 500);
+      setTimeout(() => { if (!aborted) moveFly($(spawnFly())); }, delay * 2);
+    }
+
+    return () => {
+      aborted = true;
+      window.removeEventListener('resize', resize);
+    };
+  },
+};
