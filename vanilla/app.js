@@ -24,6 +24,7 @@ const DEFAULT_DATA = {
   mixtape: { color: 'sage', label: 'Songs for you', songs: [], note: '' },
   memoryMap: { pins: [] },
   theme: 'classic',
+  recipientPin: '1122', // separate from OWNER_PIN — this is the code Dino shares with Panther
   moonPhaseDay: 15, // 1-30, moon shape only (1=new moon, 15=full moon)
   skyEffectId: 1,   // 1-30, star/sky-effect mood — independent of the moon shape
   skyColorId: 1,    // 1-30, sky background color — independent of both above
@@ -350,9 +351,38 @@ function requestLiveLocation() {
   );
 }
 
+// The guided sequence Panther steps through — Collection is deliberately
+// excluded here: it's always reachable separately as the "see everything"
+// escape hatch, not one more stop to click past.
+function visibleRecipientTabs(data) {
+  return ['letters', 'gallery', 'bouquet', 'mixtape', 'memorymap', 'moon'].filter(t => !data.hiddenTabs[t]);
+}
 function firstVisibleRecipientTab(data) {
-  const order = ['letters', 'gallery', 'bouquet', 'mixtape', 'memorymap', 'collection', 'moon'];
-  return order.find(t => !data.hiddenTabs[t]) || 'letters';
+  return visibleRecipientTabs(data)[0] || 'letters';
+}
+function stepRecipientTab(data, current, dir) {
+  const order = visibleRecipientTabs(data);
+  const idx = order.indexOf(current);
+  if (idx === -1) return order[0] || null;
+  const next = idx + dir;
+  if (next < 0 || next >= order.length) return null;
+  return order[next];
+}
+// Persistent bottom nav shown only to the recipient — steps through the
+// curated sequence one piece at a time instead of a free-roam tab bar, with
+// Collection always one tap away as the "see everything" escape hatch.
+function recipientNavHTML(data, currentTab) {
+  const order = visibleRecipientTabs(data);
+  const idx = order.indexOf(currentTab);
+  const isFirst = idx <= 0;
+  const isLast = idx === order.length - 1;
+  return `<div style="position:fixed;bottom:0;left:0;width:100%;z-index:60;background:rgba(10,8,6,0.85);backdrop-filter:blur(16px);border-top:1px solid rgba(255,255,255,0.08);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <button data-action="recipient-prev" ${isFirst ? 'disabled' : ''} class="font-mono" style="padding:10px 16px;border-radius:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:${isFirst ? 'rgba(255,255,255,0.2)' : '#f0dfb8'};cursor:${isFirst ? 'not-allowed' : 'pointer'};font-size:12px;flex-shrink:0;">‹ Back</button>
+    <div style="display:flex;gap:6px;align-items:center;">
+      ${order.map((t, i) => `<div style="width:${i === idx ? 18 : 6}px;height:6px;border-radius:3px;background:${i === idx ? '#e9c349' : 'rgba(255,255,255,0.2)'};transition:all 0.2s;"></div>`).join('')}
+    </div>
+    <button data-action="recipient-next" class="font-mono" style="padding:10px 16px;border-radius:14px;background:#e9c349;border:none;color:#000d20;cursor:pointer;font-size:12px;font-weight:700;flex-shrink:0;white-space:nowrap;">${isLast ? 'See Everything 📚' : 'Next ›'}</button>
+  </div>`;
 }
 function shareUrl() {
   return `${window.location.origin}${window.location.pathname}?gift=main`;
@@ -428,7 +458,10 @@ function skyBackdropHTML(themeId) {
 const state = {
   isRecipient: false,
   giftParam: null,
-  recipient: { loading: false, error: false, data: null, tab: 'letters', live: { status: 'idle' } },
+  recipient: {
+    loading: false, error: false, data: null, tab: 'letters', live: { status: 'idle' },
+    pinOk: false, pin: { digits: ['', '', '', ''], error: false, shaking: false }, pinFocusIndex: null,
+  },
   pinOk: false,
   pin: { digits: ['', '', '', ''], error: false, shaking: false },
   pinFocusIndex: null,
@@ -451,6 +484,7 @@ const state = {
   memoryMapDraft: null, // { x, y, title, date, note, photoUrl, voiceUrl }
   memoryMapViewingId: null,
   memoryMapUploading: false,
+  recipientPinForm: { pin: '' },
 };
 
 const root = document.getElementById('root');
@@ -459,6 +493,7 @@ const root = document.getElementById('root');
 function computeView() {
   if (state.isRecipient && state.recipient.loading) return 'recipient-loading';
   if (state.isRecipient && state.recipient.error) return 'recipient-error';
+  if (state.isRecipient && state.recipient.data && !state.recipient.pinOk) return 'recipient-pin';
   if (state.isRecipient && state.recipient.data) {
     if (state.recipient.tab === 'moon') return 'moon';
     if (state.recipient.tab === 'bouquet') return 'bouquet';
@@ -483,6 +518,7 @@ function render() {
   switch (view) {
     case 'recipient-loading': html = recipientLoadingHTML(); break;
     case 'recipient-error': html = recipientErrorHTML(); break;
+    case 'recipient-pin': html = recipientPinScreenHTML(); break;
     case 'recipient': html = recipientViewHTML(); break;
     case 'pin': html = pinScreenHTML(); break;
     case 'moon': html = (state.isRecipient && state.recipient.data) ? moonScriptViewHTML() : moonScriptEditorHTML(); break;
@@ -502,6 +538,11 @@ function afterRender(view) {
     const el = root.querySelector(`[data-role="pin-digit"][data-index="${state.pinFocusIndex}"]`);
     if (el) el.focus();
     state.pinFocusIndex = null;
+  }
+  if (view === 'recipient-pin' && state.recipient.pinFocusIndex !== null) {
+    const el = root.querySelector(`[data-role="recipient-pin-digit"][data-index="${state.recipient.pinFocusIndex}"]`);
+    if (el) el.focus();
+    state.recipient.pinFocusIndex = null;
   }
   if (view === 'moon') {
     const box = root.querySelector('#moon-messages');
@@ -640,6 +681,38 @@ function recipientLoadingHTML() {
   </div>`;
 }
 
+function recipientPinScreenHTML() {
+  const { digits, error, shaking } = state.recipient.pin;
+  return `
+  <div style="min-height:100vh;background:var(--page-bg);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
+    ${starsHTML()}
+    <div style="position:relative;z-index:10;width:100%;max-width:380px;padding:0 24px;display:flex;flex-direction:column;align-items:center;gap:28px;">
+      <div style="text-align:center;animation:slideUp 0.5s ease-out forwards;">
+        <div style="display:flex;justify-content:center;margin-bottom:4px;transform:scale(0.75);animation:float 5s ease-in-out infinite;">${catSoldierSVG()}</div>
+        <h1 class="font-serif gold-glow" style="font-size:28px;font-weight:700;color:#ffddb0;margin-bottom:6px;">Sign for the parcel</h1>
+        <p class="font-serif" style="color:#b2c8ed;font-size:14px;font-style:italic;">Dino left you a code to open it 🐾</p>
+      </div>
+
+      <div class="glass-gold" style="width:100%;border-radius:28px;padding:32px;box-shadow:0 24px 60px rgba(0,0,0,0.5);animation:slideUp 0.5s 0.1s ease-out forwards;opacity:0;">
+        <p class="font-stencil" style="text-align:center;font-size:14px;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:22px;">Enter The Code</p>
+        <div class="${shaking ? 'do-shake' : ''}" style="display:flex;justify-content:center;gap:14px;margin-bottom:16px;">
+          ${[0, 1, 2, 3].map(i => {
+            const d = digits[i];
+            const borderColor = error ? '#f87171' : d ? 'var(--accent)' : 'rgba(178,200,237,0.2)';
+            const boxShadow = d ? '0 0 14px rgba(var(--accent-rgb),0.3)' : 'none';
+            return `<input type="password" inputmode="numeric" maxlength="1" value="${esc(d)}" data-role="recipient-pin-digit" data-index="${i}" class="font-mono"
+              style="width:58px;height:68px;text-align:center;font-size:30px;font-weight:700;background:rgba(0,13,32,0.85);border:2px solid ${borderColor};border-radius:16px;color:#ffddb0;outline:none;box-shadow:${boxShadow};transition:all 0.2s;" />`;
+          }).join('')}
+        </div>
+        ${error ? `<p class="font-mono" style="text-align:center;color:#f87171;font-size:12px;margin-bottom:12px;animation:fadeIn 0.2s ease-out;">That's not it — try again 💫</p>` : ''}
+        <button data-action="recipient-pin-submit" class="btn-gold" style="width:100%;padding:16px 0;border-radius:18px;font-size:14px;border:none;cursor:pointer;letter-spacing:0.05em;">
+          Open Your Gift ✨
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function recipientErrorHTML() {
   return `
   <div style="${PAGE_STYLE}display:flex;align-items:center;justify-content:center;">
@@ -660,15 +733,6 @@ function recipientViewHTML() {
   const isLive = live.status === 'ready';
   const toLabel = isLive && live.cityName ? live.cityName : d.toCity;
   const kmLabel = isLive ? Math.round(live.distanceKm).toLocaleString() : Number(d.distanceKm).toLocaleString();
-  const tabs = [
-    { id: 'letters', label: `Letters (${d.letters.filter(l => l.isPublished).length})`, emoji: '💌' },
-    { id: 'gallery', label: `Gallery (${d.gallery.length})`, emoji: '📷' },
-    { id: 'bouquet', label: 'Bouquet', emoji: '💐' },
-    { id: 'mixtape', label: 'Mixtape', emoji: '📻' },
-    { id: 'memorymap', label: 'Memory Map', emoji: '🗺️' },
-    { id: 'collection', label: 'Collection', emoji: '📚' },
-    { id: 'moon', label: 'Talk to Moon', emoji: '🌙' },
-  ].filter(t => !d.hiddenTabs[t.id]);
   return `
   <div style="${PAGE_STYLE}">
     ${skyBackdropHTML(d.theme)}
@@ -688,18 +752,10 @@ function recipientViewHTML() {
         ${isLive ? `<p class="font-mono" style="margin-top:8px;font-size:10px;color:rgba(74,222,128,0.7);">📡 live distance from your current location</p>` : ''}
       </div>
 
-      <div class="glass-gold" style="border-radius:20px;padding:6px;display:flex;gap:6px;margin-bottom:24px;">
-        ${tabs.map(t => `
-          <button data-action="recipient-tab" data-tab="${t.id}" class="font-mono"
-            style="flex:1;padding:11px 8px;border-radius:14px;border:none;cursor:pointer;font-size:12px;font-weight:700;
-            background:${tab === t.id ? 'var(--accent)' : 'transparent'};color:${tab === t.id ? '#000d20' : 'rgba(178,200,237,0.5)'};transition:all 0.2s;">
-            ${t.emoji} ${esc(t.label)}
-          </button>`).join('')}
-      </div>
-
       ${tab === 'letters' ? envelopeGridHTML(d.letters, false) : ''}
       ${tab === 'gallery' ? galleryGridHTML(d.gallery, false) : ''}
     </div>
+    ${recipientNavHTML(d, tab)}
   </div>` + (tab === 'letters' ? letterModalOverlayHTML(d.letters) : (tab === 'gallery' ? lightboxOverlayHTML(d.gallery) : ''));
 }
 
@@ -1190,10 +1246,11 @@ function moonScriptViewHTML() {
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:${sky};">
     ${moonHeaderHTML('Talk to the Moon', 'Whisper across the miles ✈️', moonDay, effectId)}
-    <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
+    <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px 90px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">Nothing written yet...</p>` : ''}
       ${messages.map(m => moonBubbleHTML(m, false)).join('')}
     </div>
+    ${recipientNavHTML(state.recipient.data, 'moon')}
   </div>`;
 }
 
@@ -1577,9 +1634,10 @@ function bouquetViewHTML() {
       </div>
       <button data-action="bouquet-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
     </div>
-    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 0 60px;position:relative;z-index:10;">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 0 90px;position:relative;z-index:10;">
       ${bq.flowers.length ? flowerClusterHTML(bq, false) : `<p class="font-mono" style="color:rgba(255,255,255,0.55);font-size:13px;">No bouquet yet...</p>`}
     </div>
+    ${recipientNavHTML(state.recipient.data, 'bouquet')}
   </div>`;
 }
 
@@ -1757,7 +1815,7 @@ function mixtapeViewHTML() {
   return `
   <div style="min-height:100vh;position:relative;background:linear-gradient(180deg, #faf6ec 0%, #faf6ec 300px, ${colorDef.labelBg} 300px, ${colorDef.labelBg} 100%);">
     ${mixtapeCloseBtnHTML()}
-    <div style="max-width:520px;margin:0 auto;padding:52px 20px 80px;text-align:center;">
+    <div style="max-width:520px;margin:0 auto;padding:52px 20px 110px;text-align:center;">
       <p class="font-mono" style="letter-spacing:0.18em;text-transform:uppercase;font-size:11px;color:#8a8a78;font-weight:700;">A little soundtrack, made for you</p>
       <h1 class="font-serif" style="font-size:32px;color:#2c2c22;margin-top:8px;">A Mixtape For You 📻</h1>
       <p class="font-mono" style="color:#6b6b5c;font-size:13px;margin-top:8px;">From your Dino 🦖</p>
@@ -1779,6 +1837,7 @@ function mixtapeViewHTML() {
           <p class="font-serif" style="font-size:13px;color:#3a3a2e;font-style:italic;">"${esc(mt.note)}"</p>
         </div>` : ''}
     </div>
+    ${recipientNavHTML(state.recipient.data, 'mixtape')}
   </div>`;
 }
 
@@ -1956,7 +2015,7 @@ function memoryMapViewHTML() {
       </div>
       <button data-action="memorymap-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#f0dfb8;">✕</button>
     </div>
-    <div style="max-width:900px;margin:0 auto;padding:0 16px 50px;position:relative;z-index:5;">
+    <div style="max-width:900px;margin:0 auto;padding:0 16px 90px;position:relative;z-index:5;">
       <div style="position:relative;width:100%;aspect-ratio:800/460;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
         ${mapSVG()}
         ${memoryMapPinsHTML(mm.pins, data.fromCity, data.toCity)}
@@ -1964,6 +2023,7 @@ function memoryMapViewHTML() {
       <p class="font-mono" style="text-align:center;color:rgba(240,223,184,0.45);font-size:11px;margin-top:12px;">${mm.pins.length ? 'Tap a pin to relive the memory' : 'No memories pinned yet...'}</p>
     </div>
     ${viewingPin ? memoryPinDetailHTML(viewingPin, false) : ''}
+    ${recipientNavHTML(data, 'memorymap')}
   </div>`;
 }
 
@@ -2265,7 +2325,7 @@ function ownerStudioHTML() {
   const data = state.owner.data;
   const tab = state.owner.tab;
   const url = shareUrl();
-  const waText = encodeURIComponent(`Panther 🐾✈️\n\nI made something for you — open when you need me 💌\n\n${url}\n\nPIN: ${OWNER_PIN} 🔐`);
+  const waText = encodeURIComponent(`Panther 🐾✈️\n\nI made something for you — open when you need me 💌\n\n${url}\n\nCode: ${data.recipientPin} 🔐`);
 
   let tabHTML = '';
   if (tab === 'home') {
@@ -2359,7 +2419,7 @@ function ownerStudioHTML() {
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
-        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['mixtape', 'Mixtape'], ['memorymap', 'Memory Map'], ['collection', 'Collection'], ['moon', 'Talk to Moon']].map(([t, label]) => `
+        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['mixtape', 'Mixtape'], ['memorymap', 'Memory Map'], ['moon', 'Talk to Moon']].map(([t, label]) => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(178,200,237,0.06);">
             <span class="font-mono" style="font-size:13px;color:#b2c8ed;">${label}</span>
             <label class="toggle-wrap">
@@ -2367,7 +2427,7 @@ function ownerStudioHTML() {
               <div class="toggle-track"><div class="toggle-thumb"></div></div>
             </label>
           </div>`).join('')}
-        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-top:10px;">Toggle off to hide a screen from Panther's gift link.</p>
+        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-top:10px;">Toggle off to leave a piece out of Panther's gift — he'll step through what's left on, in order. Collection (everything, ever sent) is always reachable and can't be turned off.</p>
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">App Theme</p>
@@ -2387,9 +2447,15 @@ function ownerStudioHTML() {
         <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Share Info</p>
         <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:8px;">Owner PIN: <span style="color:var(--accent);font-weight:700;font-size:16px;">${OWNER_PIN}</span></p>
         <p class="font-mono" style="font-size:12px;color:rgba(178,200,237,0.4);margin-bottom:12px;word-break:break-all;">Panther's link: <span style="color:#7dd3fc;">${esc(url)}</span></p>
-        <button data-action="copy-link" class="font-mono" style="padding:10px 20px;border-radius:14px;background:rgba(var(--accent-rgb),0.1);border:1px solid rgba(var(--accent-rgb),0.25);color:var(--accent);cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+        <button data-action="copy-link" class="font-mono" style="padding:10px 20px;border-radius:14px;background:rgba(var(--accent-rgb),0.1);border:1px solid rgba(var(--accent-rgb),0.25);color:var(--accent);cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:16px;">
           ${state.owner.copied ? '✓ Copied!' : '⧉ Copy Link'}
         </button>
+        <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-bottom:8px;">Panther's code — he'll need this to open the link (tell him separately, e.g. in your message):</p>
+        <div style="display:flex;gap:10px;">
+          <input type="text" inputmode="numeric" maxlength="4" value="${esc(state.recipientPinForm.pin)}" data-scope="recipientPinForm" data-field="pin" placeholder="1122" class="font-mono"
+            style="${OWNER_INPUT_STYLE}flex:1;font-size:16px;letter-spacing:0.3em;text-align:center;" />
+          <button data-action="save-recipient-pin" class="font-mono" style="padding:10px 16px;border-radius:14px;border:1px solid rgba(var(--accent-rgb),0.25);background:rgba(var(--accent-rgb),0.1);color:var(--accent);cursor:pointer;font-size:12px;white-space:nowrap;">Save</button>
+        </div>
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <button data-action="lock-app" class="font-mono" style="width:100%;padding:12px 0;border-radius:16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer;font-size:13px;font-weight:700;">🔒 Lock App</button>
@@ -2479,6 +2545,12 @@ async function publish() {
 }
 async function updateCities() {
   await persist({ ...state.owner.data, fromCity: state.owner.cityForm.fromCity, toCity: state.owner.cityForm.toCity });
+}
+async function saveRecipientPin() {
+  const pin = (state.recipientPinForm.pin || '').replace(/\D/g, '').slice(0, 4);
+  if (pin.length !== 4) { window.alert('Panther\'s code needs to be exactly 4 digits.'); return; }
+  state.recipientPinForm.pin = pin;
+  await persist({ ...state.owner.data, recipientPin: pin });
 }
 async function pickTheme(id) {
   applyTheme(id); // instant preview, doesn't wait on the save
@@ -2608,6 +2680,7 @@ async function unlock() {
     state.bouquetForm.note = state.owner.data.bouquet.note;
     state.mixtapeForm.label = state.owner.data.mixtape.label;
     state.mixtapeForm.note = state.owner.data.mixtape.note;
+    state.recipientPinForm.pin = state.owner.data.recipientPin;
     applyTheme(state.owner.data.theme);
     render();
   }
@@ -2641,6 +2714,40 @@ function handlePinDigitInput(target) {
     else pinError();
   }
 }
+function recipientUnlock() {
+  state.recipient.pinOk = true;
+  state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
+  render();
+}
+function recipientPinError() {
+  state.recipient.pin.error = true;
+  state.recipient.pin.shaking = true;
+  render();
+  setTimeout(() => {
+    state.recipient.pin.shaking = false;
+    state.recipient.pin.digits = ['', '', '', ''];
+    state.recipient.pin.error = false;
+    state.recipient.pinFocusIndex = 0;
+    render();
+  }, 650);
+}
+function handleRecipientPinDigitInput(target) {
+  const i = Number(target.dataset.index);
+  const v = target.value.replace(/\D/g, '').slice(-1);
+  target.value = v;
+  state.recipient.pin.digits[i] = v;
+  target.style.borderColor = v ? 'var(--accent)' : 'rgba(178,200,237,0.2)';
+  target.style.boxShadow = v ? '0 0 14px rgba(var(--accent-rgb),0.3)' : 'none';
+  if (v && i < 3) {
+    const next = target.parentElement.querySelector(`[data-index="${i + 1}"]`);
+    if (next) next.focus();
+  }
+  if (i === 3 && v) {
+    const pin = state.recipient.pin.digits.join('');
+    if (pin === (state.recipient.data.recipientPin || '')) recipientUnlock();
+    else recipientPinError();
+  }
+}
 
 // ── Event delegation ─────────────────────────────────────────────────────
 function handleClick(e) {
@@ -2652,6 +2759,11 @@ function handleClick(e) {
     case 'pin-submit': {
       const pin = state.pin.digits.join('');
       if (pin.length === 4 && pin === OWNER_PIN) unlock(); else pinError();
+      break;
+    }
+    case 'recipient-pin-submit': {
+      const pin = state.recipient.pin.digits.join('');
+      if (pin.length === 4 && pin === (state.recipient.data.recipientPin || '')) recipientUnlock(); else recipientPinError();
       break;
     }
     case 'owner-tab': state.owner.tab = el.dataset.tab; render(); break;
@@ -2678,6 +2790,7 @@ function handleClick(e) {
     case 'lightbox-prev': moveLightbox(-1); break;
     case 'lightbox-next': moveLightbox(1); break;
     case 'update-cities': updateCities(); break;
+    case 'save-recipient-pin': saveRecipientPin(); break;
     case 'pick-theme': pickTheme(el.dataset.theme); break;
     case 'pick-moon-day': pickMoonDay(Number(el.dataset.day)); break;
     case 'pick-sky-effect': pickSkyEffect(Number(el.dataset.effect)); break;
@@ -2720,11 +2833,27 @@ function handleClick(e) {
     case 'bouquet-close':
     case 'mixtape-close':
     case 'memorymap-close':
+      if (state.isRecipient && state.recipient.data) state.recipient.tab = 'collection';
+      else state.owner.tab = 'home';
+      render();
+      break;
     case 'collection-close':
       if (state.isRecipient && state.recipient.data) state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
       else state.owner.tab = 'home';
       render();
       break;
+    case 'recipient-next': {
+      const d = state.recipient.data;
+      state.recipient.tab = stepRecipientTab(d, state.recipient.tab, 1) || 'collection';
+      render();
+      break;
+    }
+    case 'recipient-prev': {
+      const d = state.recipient.data;
+      state.recipient.tab = stepRecipientTab(d, state.recipient.tab, -1) || firstVisibleRecipientTab(d);
+      render();
+      break;
+    }
     case 'bouquet-add-flower': addBouquetFlower(el.dataset.flower); break;
     case 'bouquet-apply-template': applyBouquetTemplate(el.dataset.template); break;
     case 'bouquet-remove-flower': removeBouquetFlower(Number(el.dataset.index)); break;
@@ -2761,7 +2890,6 @@ function handleClick(e) {
     case 'memorymap-delete-pin':
       if (window.confirm('Delete this memory?')) deleteMemoryPin(el.dataset.id);
       break;
-    case 'recipient-tab': state.recipient.tab = el.dataset.tab; render(); break;
     case 'recipient-retry': window.location.reload(); break;
   }
 }
@@ -2769,6 +2897,7 @@ function handleClick(e) {
 function handleInput(e) {
   const t = e.target;
   if (t.dataset.role === 'pin-digit') { handlePinDigitInput(t); return; }
+  if (t.dataset.role === 'recipient-pin-digit') { handleRecipientPinDigitInput(t); return; }
   const scope = t.dataset.scope, field = t.dataset.field;
   if (!scope || !field) return;
   const target = scope === 'editor' ? state.editor.draft
@@ -2778,6 +2907,7 @@ function handleInput(e) {
     : scope === 'bouquetForm' ? state.bouquetForm
     : scope === 'mixtapeForm' ? state.mixtapeForm
     : scope === 'memoryMapDraft' ? state.memoryMapDraft
+    : scope === 'recipientPinForm' ? state.recipientPinForm
     : null;
   if (target) target[field] = t.value;
   // keep the add buttons' disabled state in sync without a full re-render
@@ -2914,6 +3044,15 @@ function handleKeydown(e) {
     }
     return;
   }
+  const recipientPinEl = e.target.closest('[data-role="recipient-pin-digit"]');
+  if (recipientPinEl && e.key === 'Backspace' && !recipientPinEl.value) {
+    const i = Number(recipientPinEl.dataset.index);
+    if (i > 0) {
+      const prev = recipientPinEl.parentElement.querySelector(`[data-index="${i - 1}"]`);
+      if (prev) prev.focus();
+    }
+    return;
+  }
   if (e.target.dataset.role === 'moon-dino-input' && e.key === 'Enter') {
     e.preventDefault();
     addMoonLine('dino');
@@ -2946,6 +3085,7 @@ async function init() {
       state.recipient.data = normalizeData(d);
       state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
       applyTheme(state.recipient.data.theme);
+      state.recipient.pinFocusIndex = 0;
     } else state.recipient.error = true;
     state.recipient.loading = false;
     render();
