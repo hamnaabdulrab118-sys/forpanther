@@ -1,0 +1,9 @@
+body {
+    background-color: burlywood;
+    margin: 0;
+    overflow: hidden;
+}
+
+canvas {
+    border: none;
+}

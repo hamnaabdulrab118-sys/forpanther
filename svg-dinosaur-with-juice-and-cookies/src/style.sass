@@ -1,0 +1,28 @@
+/* Thank you for checking out my dinosaur! Currently is still a WIP with added animation. This challenge is a part of the Cascading Coders dino challenge. SVG is hand-drawn, if used please attribute @JavaScriptErika -my Twitter handle. */
+
+body
+  background-color: #3d4645
+
+.dino-svg
+  width: 90%
+  margin: 8rem auto 0  
+  @media screen and (min-width: 769px)
+    width: 50rem
+    
+.straw-drips
+  filter:url('#juice-goo')
+
+  
+.main-straw-drop
+  animation: main-dripping 5s infinite ease-in both
+  
+.secondary-straw-drop
+  animation: small-dripping 2s infinite ease-in-out both
+  
+@keyframes small-dripping
+  100%
+    transform: translateY(180px)
+
+@keyframes main-dripping
+  50%
+    transform: translateY(-.09rem)

@@ -1,0 +1,704 @@
+$EGG_COLOR: #98adbb;
+$DINOSAURS_COLOR: #aadca9;
+$DINOSAURS_JAGGED_COLOR: #7abd9a;
+$DINOSAURS_HAND_COLOR: #7abd9a;
+$BG_COLOR: #ece6ce;
+$HEART_COLOR: #f99b9a;
+
+$EGG_TOP_TOP: -2px;
+$EGG_BOTTOM_TOP: 110px;
+$DINOSAURS_TOP_BEFORE: 42px;
+$DINOSAURS_TOP_AFTER: 0;
+$EGG_TOP_CLOSE_TOP: 34px;
+
+@mixin keyframes($animation-name) {
+  @-webkit-keyframes #{$animation-name} {
+    @content;
+  }
+  @-moz-keyframes #{$animation-name} {
+    @content;
+  }
+  @keyframes #{$animation-name} {
+    @content;
+  }
+}
+
+@mixin animation($animation-name) {
+  -webkit-animation: $animation-name;
+  -moz-animation: $animation-name;
+  animation: $animation-name;
+  -webkit-animation-fill-mode: both;
+  -moz-animation-fill-mode: both;
+  animation-fill-mode: both;
+}
+
+@mixin prefixes($property, $value) {
+  @each $prefix in -webkit-, -moz-, -ms-, -o-, "" {
+    #{$prefix}#{$property}: $value;
+  }
+}
+
+.dinosaurs {
+  $base: &;
+  position: absolute;
+  top: calc(50% - 105px);
+  left: calc(50% - 100px);
+  &__face {
+    position: absolute;
+    top: 34px;
+    left: 0;
+    width: 155px;
+    height: 105px;
+  }
+  &__face-inner {
+    position: absolute;
+    top: $DINOSAURS_TOP_BEFORE;
+    left: 39px;
+    width: 114px;
+    height: 103px;
+    border-radius: 18px;
+    background-color: $DINOSAURS_COLOR;
+    @include animation(face 4s linear normal infinite);
+
+    &:before {
+      content: "";
+      position: absolute;
+      top: 76px;
+      left: -13px;
+      width: 50px;
+      height: 42px;
+      border-radius: 50%;
+      background-color: $DINOSAURS_COLOR;
+    }
+  }
+  &__eye {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: #fff;
+    top: 26px;
+    z-index: 5;
+    &:before {
+      top: 2px;
+      left: 2px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background-color: #000;
+    }
+
+    &--right {
+      left: 42px;
+    }
+    &--left {
+      top: 20px;
+      left: 0px;
+    }
+  }
+  &__face-jagged {
+    position: absolute;
+    top: 31px;
+    right: -23px;
+    width: 23px;
+    height: 59px;
+    overflow: hidden;
+  }
+  &__face-jagged-part {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 18px solid $DINOSAURS_JAGGED_COLOR;
+    border-top: 9px solid transparent;
+    border-bottom: 16px solid transparent;
+    top: 3px;
+    left: 0;
+    @include prefixes(transform, rotate(0));
+    @include animation(beforenone 4s linear normal infinite);
+
+    &:before, &:after {
+      width: 0;
+      height: 0;
+      @include prefixes(transform, rotate(0));
+    }
+
+    &:before {
+      border-left: 14px solid $DINOSAURS_JAGGED_COLOR;
+      border-top: 12px solid transparent;
+      border-bottom: 12px solid transparent;
+      top: 8px;
+      left: -19px;
+    }
+    &:after {
+      border-left: 11px solid $DINOSAURS_JAGGED_COLOR;
+      border-top: 9px solid transparent;
+      border-bottom: 8px solid transparent;
+      top: 26px;
+      left: -19px;
+    }
+  }
+  &__mouth-top {
+    position: absolute;
+    top: 27px;
+    left: -39px;
+    width: 114px;
+    height: 35px;
+    overflow: hidden;
+    @include prefixes(transform, rotate(6deg));
+    @include animation(beforenone 4s linear normal infinite);
+  }
+  &__mouth-top-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 122px;
+    height: 103px;
+    border-radius: 27px;
+    background-color: $DINOSAURS_COLOR;
+  }
+  &__mouth-bottom {
+    position: absolute;
+    top: 46px;
+    left: -40px;
+    width: 114px;
+    height: 35px;
+    overflow: hidden;
+    @include prefixes(transform, rotate(6deg));
+  }
+  &__mouth-bottom-inner {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 122px;
+    height: 103px;
+    border-radius: 27px;
+    background-color: $DINOSAURS_COLOR;
+  }
+  &__tails {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-top: 66px solid $DINOSAURS_COLOR;
+    border-left: 14px solid transparent;
+    border-right: 14px solid transparent;
+    top: 105px;
+    right: -31px;
+    @include prefixes(transform, rotate(-34deg));
+    @include animation(tail 4s linear normal infinite);
+  }
+  &__tails-jagged {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 11px solid $DINOSAURS_JAGGED_COLOR;
+    border-top: 9px solid transparent;
+    border-bottom: 8px solid transparent;
+    top: -62px;
+    left: 11px;
+    @include prefixes(transform, rotate(12deg));
+
+    &:before, &:after {
+      width: 0;
+      height: 0;
+      left: -11px;
+      border-left: 7px solid $DINOSAURS_JAGGED_COLOR;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      @include prefixes(transform, rotate(0));
+    }
+
+    &:before {
+      top: 8px;
+    }
+    &:after {
+      top: 21px;
+    }
+  }
+  &__hand {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    height: 25px;
+    border-radius: 50%;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    background-color: $DINOSAURS_HAND_COLOR;
+    @include animation(hand 4s linear normal infinite);
+
+    &--left {
+      top: 111px;
+      left: 14px;
+      @include prefixes(transform, rotate(-18deg));
+
+      #{$base}__claw {
+        border-top: 5px solid #fff;
+        border-left: 7px solid transparent;
+        border-right: 1px solid transparent;
+        bottom: -5px;
+        left: 25px;
+        &:before {
+          border-top: 5px solid #fff;
+          border-left: 7px solid transparent;
+          border-right: 3px solid transparent;
+          bottom: 0px;
+          left: -17px;
+        }
+        &:after {
+          border-top: 5px solid #fff;
+          border-left: 8px solid transparent;
+          border-right: 3px solid transparent;
+          bottom: 0;
+          left: -26px;
+        }
+      }
+    }
+    &--right {
+      top: 110px;
+      left: 82px;
+      @include prefixes(transform, rotate(18deg));
+
+      #{$base}__claw {
+        border-top: 5px solid #fff;
+        border-left: 1px solid transparent;
+        border-right: 7px solid transparent;
+        bottom: -5px;
+        left: 3px;
+        &:before {
+          border-top: 5px solid #fff;
+          border-left: 3px solid transparent;
+          border-right: 7px solid transparent;
+          bottom: 0;
+          left: 7px;
+        }
+        &:after {
+          border-top: 5px solid #fff;
+          border-left: 3px solid transparent;
+          border-right: 8px solid transparent;
+          bottom: 0;
+          left: 17px;
+        }
+      }
+    }
+  }
+  &__claw {
+    position: absolute;
+    border-top: 6px solid #fff;
+    border-left: 3px solid transparent;
+    border-right: 7px solid transparent;
+    bottom: -6px;
+    left: 3px;
+    &:before, &:after {
+      bottom: 0;
+      border-top: 6px solid #fff;
+      border-left: 3px solid transparent;
+    }
+    &:before {
+      border-right: 7px solid transparent;
+      left: 7px;
+    }
+    &:after {
+      border-right: 6px solid transparent;
+      left: 17px;
+    }
+  }
+}
+
+.egg {
+  &__top {
+    position: absolute;
+    top: $EGG_TOP_CLOSE_TOP;
+    left: 21px;
+    width: 135px;
+    height: 50px;
+    overflow: hidden;
+    @include prefixes(transform, rotate(0));
+    @include animation(egg-top 4s linear normal infinite);
+
+  }
+  &__top-body {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 115px;
+    background-color: $EGG_COLOR;
+    border-radius: 50%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  &__top-jagged {
+    position: absolute;
+    width: 145px;
+    height: 40px;
+    top: $EGG_TOP_CLOSE_TOP + 36px;
+    left: 18px;
+    @include prefixes(transform, rotate(0));
+    @include animation(egg-top-jagged 4s linear normal infinite);
+
+    &:after {
+      top: -2px;
+      left: 14px;
+      width: 112px;
+      height: 84px;
+      background-color: $EGG_COLOR;
+      border-radius: 62%;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      @include animation(afternone 4s linear normal infinite);
+    }
+  }
+  &__top-jagged-part {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-top-color: $EGG_COLOR;
+    border-top-style: solid;
+    border-left-color: transparent;
+    border-left-style: solid;
+    border-right-color: transparent;
+    border-right-style: solid;
+    &:nth-of-type(1) {
+      top: 9px;
+      left: 2px;
+      border-top-width: 28px;
+      border-left-width: 0;
+      border-right-width: 42px;
+      @include prefixes(transform, rotate(14deg));
+    }
+    &:nth-of-type(2) {
+      top: 4px;
+      left: 20px;
+      border-top-width: 28px;
+      border-left-width: 39px;
+      border-right-width: 31px;
+      @include prefixes(transform, rotate(13deg));
+    }
+    &:nth-of-type(3) {
+      top: 2px;
+      left: 59px;
+      border-top-width: 28px;
+      border-left-width: 38px;
+      border-right-width: 28px;
+      @include prefixes(transform, rotate(13deg));
+    }
+    &:nth-of-type(4) {
+      top: 12px;
+      left: 110px;
+      border-top-width: 20px;
+      border-left-width: 29px;
+      border-right-width: 0;
+      @include prefixes(transform, rotate(-15deg));
+    }
+  }
+  &__bottom {
+    position: absolute;
+    top: $EGG_BOTTOM_TOP + 24px;
+    left: 11px;
+    width: 155px;
+    height: 67px;
+    overflow: hidden;
+    @include prefixes(transform, rotate(0));
+  }
+  &__bottom-body {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 84px;
+    background-color: $EGG_COLOR;
+    border-radius: 50%;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  &__bottom-jagged {
+    position: absolute;
+    width: 155px;
+    height: 40px;
+    top: $EGG_BOTTOM_TOP;
+    left: 13px;
+    &:before, &:after {
+      width: 20px;
+      background-color: $EGG_COLOR;
+      @include animation(afternone 4s linear normal infinite);
+    }
+    &:before {
+      top: -24px;
+      left: 3px;
+      height: 50px;
+      @include prefixes(transform, rotate(12deg));
+    }
+    &:after {
+      top: -22px;
+      right: 7px;
+      height: 49px;
+      @include prefixes(transform, rotate(-11deg));
+    }
+  }
+  &__bottom-jagged-part {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-bottom-color: $EGG_COLOR;
+    border-bottom-style: solid;
+    border-left-color: transparent;
+    border-left-style: solid;
+    border-right-color: transparent;
+    border-right-style: solid;
+    &:nth-of-type(1) {
+      top: 13px;
+      left: -1px;
+      border-bottom-width: 16px;
+      border-left-width: 8px;
+      border-right-width: 27px;
+      @include prefixes(transform, rotate(17deg));
+    }
+    &:nth-of-type(2) {
+      top: 10px;
+      left: 10px;
+      border-bottom-width: 18px;
+      border-left-width: 30px;
+      border-right-width: 30px;
+      @include prefixes(transform, rotate(-12deg));
+    }
+    &:nth-of-type(3) {
+      top: 9px;
+      left: 61px;
+      border-bottom-width: 20px;
+      border-left-width: 34px;
+      border-right-width: 32px;
+      @include prefixes(transform, rotate(8deg));
+    }
+    &:nth-of-type(4) {
+      top: 7px;
+      left: 104px;
+      border-bottom-width: 20px;
+      border-left-width: 34px;
+      border-right-width: 13px;
+      @include prefixes(transform, rotate(-8deg));
+    }
+  }
+}
+
+.balloon {
+  position: absolute;
+  top: -4px;
+  left: -95px;
+  width: 80px;
+  height: 80px;
+  background-color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  @include prefixes(transform, rotate(-10deg));
+  @include animation(balloon 4s linear normal infinite);
+
+  &:before {
+    right: 0;
+    bottom: 1px;
+    width: 0;
+    height: 0;
+    border-top: 20px solid #fff;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    @include prefixes(transform, rotate(-42deg));
+  }
+}
+
+.heart {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  top: 25px;
+  left: 20px;
+  &:before, &:after {
+    top: 0;
+    width: 20px;
+    height: 30px;
+    background-color: $HEART_COLOR;
+    border-radius: 50px 50px 0 0;
+  }
+  &:before {
+    left: 20px;
+    transform-origin: 0 100%;
+    @include prefixes(transform, rotate(-45deg));
+  }
+  &:after {
+    left: 0;
+    transform-origin: 100% 100%;
+    @include prefixes(transform, rotate(45deg));
+  }
+}
+
+@include keyframes(egg-top) {
+  0% {
+    top: $EGG_TOP_CLOSE_TOP;
+    left: 21px;
+    width: 135px;
+    @include prefixes(transform, rotate(0));
+  }
+  25% {
+    top: $EGG_TOP_CLOSE_TOP;
+    left: 21px;
+    width: 135px;
+    @include prefixes(transform, rotate(0));
+  }
+  35% {
+    top: $EGG_TOP_TOP;
+    left: 35px;
+    width: 138px;
+    @include prefixes(transform, rotate(12deg));
+  }
+  100% {
+    top: $EGG_TOP_TOP;
+    left: 35px;
+    width: 138px;
+    @include prefixes(transform, rotate(12deg));
+  }
+}
+
+@include keyframes(egg-top-jagged) {
+  0% {
+    top: $EGG_TOP_CLOSE_TOP + 36px;
+    left: 18px;
+    @include prefixes(transform, rotate(0));
+  }
+  25% {
+    top: $EGG_TOP_CLOSE_TOP + 36px;
+    left: 18px;
+    @include prefixes(transform, rotate(0));
+  }
+  35% {
+    top: $EGG_TOP_TOP + 31px;
+    left: 28px;
+    @include prefixes(transform, rotate(12deg));
+  }
+  100% {
+    top: $EGG_TOP_TOP + 31px;
+    left: 28px;
+    @include prefixes(transform, rotate(12deg));
+  }
+}
+
+@include keyframes(face) {
+  0% {
+    top: $DINOSAURS_TOP_BEFORE;
+    opacity: 0;
+  }
+  25% {
+    top: $DINOSAURS_TOP_BEFORE;
+    opacity: 0;
+  }
+  35% {
+    top: $DINOSAURS_TOP_AFTER;
+    opacity: 1;
+  }
+  100% {
+    top: $DINOSAURS_TOP_AFTER;
+    opacity: 1;
+  }
+}
+
+@include keyframes(tail) {
+  0% {
+    top: 80px;
+    right: 10px;
+    @include prefixes(transform, rotate(-118deg));
+  }
+  30% {
+    top: 80px;
+    right: 10px;
+    @include prefixes(transform, rotate(-118deg));
+  }
+  40% {
+    top: 105px;
+    right: -31px;
+    @include prefixes(transform, rotate(-34deg));
+  }
+  100% {
+    top: 105px;
+    right: -31px;
+    @include prefixes(transform, rotate(-34deg));
+  }
+}
+
+@include keyframes(hand) {
+  0% {
+    @include prefixes(transform, rotateX(-90deg));
+  }
+  25% {
+    @include prefixes(transform, rotateX(-90deg));
+  }
+  35% {
+    @include prefixes(transform, rotateX(0));
+  }
+  100% {
+    @include prefixes(transform, rotateX(0));
+  }
+}
+
+@include keyframes(afternone) {
+  0% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 1;
+  }
+  26% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@include keyframes(beforenone) {
+  0% {
+    opacity: 0;
+  }
+  5% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@include keyframes(balloon) {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+// base
+html {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background-color: $BG_COLOR;
+}
+
+* {
+  position: relative;
+  &:before,
+  &:after {
+    position: absolute;
+    content: "";
+  }
+}

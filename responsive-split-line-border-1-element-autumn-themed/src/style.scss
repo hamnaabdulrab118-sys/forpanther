@@ -1,0 +1,54 @@
+$bg-url: 'https://s3-us-west-2.amazonaws.com/s.cdpn.io/2017/autumn_background_pumpkin_house.jpg';
+$logo-url: 'https://s3-us-west-2.amazonaws.com/s.cdpn.io/2017/cat_on_pumpkin.png';
+$c: #fff;
+$heading-w: 8em;
+$logo-w: .4*$heading-w;
+$logo-h: .93*$logo-w;
+$off: -.5em;
+$lat: .5*($heading-w - $logo-w);
+$pad: .125*$lat;
+$cut: $lat - $pad;
+$size: $lat + $logo-w + $pad;
+
+html {
+	overflow: hidden;
+	min-width: 10em;
+	background: url($bg-url) 50% / cover fixed;
+	font: italic calc(1vw + 1vh + .25vmin)/ 1.25
+		'over the rainbow', cursive;
+}
+
+h1 {
+	position: relative;
+	margin: 1em;
+	border-bottom: solid 1px currentColor;
+	padding: 1.25*$logo-h 0 1em;
+	width: $heading-w;
+	background: linear-gradient(90deg, 
+				currentColor $cut, transparent 0) 
+		0 .65*$logo-h / #{$size} 1px repeat-x 
+			border-box;
+	color: $c;
+	text-align: center;
+	
+	&:before, &:after {
+		position: absolute;
+		content: '';
+	}
+	
+	&:before {
+		z-index: -1;
+		top: $off; right: $off; 
+		bottom: $off; left: $off;
+		opacity: .95;
+		background: url($bg-url) 50% / cover fixed; 
+		filter: blur(4px) brightness(.65);
+	}
+	
+	&:after {
+		top: 0; left: 50%;
+		width: $logo-w; height: $logo-h;
+		transform: translate(-50%);
+		background: url($logo-url) 50% / contain no-repeat;
+	}
+}

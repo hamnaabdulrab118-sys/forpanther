@@ -1,0 +1,355 @@
+:root {
+	--title: "Flowers & Fireflies";
+	--author: "Matt Cannon";
+	--contact: "mc@mattcannon.design";
+	--description: "An immersive night garden scene featuring flowers that bloom on prime number cycles, implementing the Cicada Principle. Watch as flowers grow at different depths with natural swaying and fireflies hover with organic movement patterns under a starry sky.";
+	--keywords: "cicada principle, prime numbers, interactive garden, flowers, fireflies, night scene, bloom cycles, animation, CSS, JavaScript, nature simulation, organic patterns, responsive design, cicada challenge, prime intervals";
+	--last-modified: "2025-03-24";
+	--content-language: "en";
+	--generator: "HTML5, CSS3, JavaScript, animation effects, prime number patterns, depth simulation";
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	background-color: #0a0e18;
+	overflow: hidden;
+	height: 100vh;
+	font-family: "Poppins", sans-serif;
+}
+
+.garden-container {
+	position: relative;
+	width: 100%;
+	height: 100vh;
+	overflow: hidden;
+	background: linear-gradient(
+		to bottom,
+		#030614 0%,
+		#0a1128 25%,
+		#172449 50%,
+		#1f2e58 75%,
+		#28334f 100%
+	);
+}
+
+.night-sky {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0.7;
+	background: radial-gradient(
+		circle at 50% 10%,
+		rgba(64, 80, 130, 0.5),
+		transparent 60%
+	);
+	z-index: 0;
+}
+
+.stars {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 70%;
+	z-index: 0;
+}
+
+.star {
+	position: absolute;
+	background-color: white;
+	border-radius: 50%;
+	opacity: 0;
+	animation: twinkle var(--twinkle-duration, 3s) ease-in-out infinite;
+	animation-delay: var(--twinkle-delay, 0s);
+}
+
+.clouds {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 60%;
+	z-index: 0;
+}
+
+.cloud {
+	position: absolute;
+	background-color: rgba(30, 40, 60, 0.6);
+	border-radius: 50%;
+	filter: blur(20px);
+	z-index: 0;
+}
+
+.garden {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+}
+
+.ground {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 50%;
+	background: linear-gradient(to bottom, #2d1d15, #211510);
+	z-index: 1;
+	overflow: hidden;
+	border-radius: 50% 70% 0 0 / 40px;
+	box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
+	transform-origin: bottom;
+}
+
+.ground::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.2'/%3E%3C/svg%3E");
+	opacity: 0.5;
+}
+
+.flower {
+	position: absolute;
+	transform-origin: bottom center;
+	z-index: 2;
+	--scale: 1;
+}
+
+.stem {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 3px;
+	background: linear-gradient(to right, #2e5d20, #5cad4a, #2e5d20);
+	border-radius: 2px;
+	transform-origin: bottom center;
+	height: 0;
+	transition: height 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+	box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.stem::after {
+	content: "";
+	position: absolute;
+	bottom: -5px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 10px;
+	height: 6px;
+	background: radial-gradient(
+		ellipse at center,
+		rgba(40, 25, 15, 0.8) 0%,
+		rgba(40, 25, 15, 0) 70%
+	);
+	border-radius: 50%;
+	opacity: 0.8;
+}
+
+.stem.curved {
+	border-radius: 50%;
+}
+
+@keyframes stemBend {
+	0% {
+		transform: perspective(500px) rotateX(0deg)
+			rotateY(var(--bend-rotation-neg, -1deg)) rotateZ(0deg);
+	}
+	50% {
+		transform: perspective(500px) rotateX(0deg)
+			rotateY(var(--bend-rotation-pos, 1deg)) rotateZ(0deg);
+	}
+	100% {
+		transform: perspective(500px) rotateX(0deg)
+			rotateY(var(--bend-rotation-neg, -1deg)) rotateZ(0deg);
+	}
+}
+
+.petal {
+	position: absolute;
+	transform-origin: center bottom;
+	opacity: 0;
+	transform: scale(0);
+	transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s ease;
+}
+
+.petal.type1 {
+	border-radius: 50% 50% 50% 0;
+}
+.petal.type2 {
+	border-radius: 80% 0 80% 0;
+}
+.petal.type3 {
+	border-radius: 0 50% 50% 50%;
+}
+.petal.type4 {
+	border-radius: 50% 20% 50% 20%;
+}
+.petal.type5 {
+	border-radius: 0 100% 50% 50%;
+}
+
+.center {
+	position: absolute;
+	border-radius: 50%;
+	opacity: 0;
+	transform: scale(0);
+	transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.leaf {
+	position: absolute;
+	transform-origin: 0 50%;
+	opacity: 0;
+	transform: scale(0);
+	transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.leaf-shape {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	transform-origin: 0 50%;
+	overflow: hidden;
+}
+
+.leaf-stem {
+	position: absolute;
+	height: 2px;
+	top: 50%;
+	left: -4px;
+	transform: translateY(-50%);
+	width: 4px;
+}
+
+.main-vein {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	width: 100%;
+	height: 1px;
+	transform: translateY(-50%);
+}
+
+.side-vein {
+	position: absolute;
+	width: 80%;
+	height: 1px;
+	transform-origin: left;
+}
+
+.firefly {
+	position: absolute;
+	width: 4px;
+	height: 4px;
+	background-color: #fff9c4;
+	border-radius: 50%;
+	filter: blur(2px);
+	box-shadow: 0 0 10px #fff9c4, 0 0 20px rgba(255, 249, 196, 0.7);
+	opacity: 0;
+	z-index: 3;
+	transition: opacity 0.5s ease;
+}
+
+@keyframes sway {
+	0% {
+		transform: scale(var(--scale)) rotate(-3deg);
+	}
+	50% {
+		transform: scale(var(--scale)) rotate(3deg);
+	}
+	100% {
+		transform: scale(var(--scale)) rotate(-3deg);
+	}
+}
+
+.flower {
+	position: absolute;
+	transform-origin: bottom center;
+	z-index: 2;
+	--scale: 1;
+}
+
+@keyframes fireflyFloat {
+	0% {
+		transform: translate(0, 0);
+	}
+	10% {
+		transform: translate(var(--x1, 3px), var(--y1, -2px));
+	}
+	20% {
+		transform: translate(var(--x2, -2px), var(--y2, -4px));
+	}
+	30% {
+		transform: translate(var(--x3, 4px), var(--y3, -1px));
+	}
+	40% {
+		transform: translate(var(--x4, 1px), var(--y4, -3px));
+	}
+	50% {
+		transform: translate(var(--x5, -3px), var(--y5, 0px));
+	}
+	60% {
+		transform: translate(var(--x6, 2px), var(--y6, -2px));
+	}
+	70% {
+		transform: translate(var(--x7, -1px), var(--y7, -4px));
+	}
+	80% {
+		transform: translate(var(--x8, 3px), var(--y8, -1px));
+	}
+	90% {
+		transform: translate(var(--x9, 0px), var(--y9, -3px));
+	}
+	100% {
+		transform: translate(0, 0);
+	}
+}
+
+@keyframes twinkle {
+	0%,
+	100% {
+		opacity: var(--min-opacity, 0.1);
+	}
+	50% {
+		opacity: var(--max-opacity, 0.7);
+	}
+}
+
+@keyframes cloudDrift {
+	0% {
+		transform: translateX(0);
+	}
+	100% {
+		transform: translateX(var(--drift-distance, 100vw));
+	}
+}
+
+@keyframes leafSway {
+	0%,
+	100% {
+		transform: rotate(var(--leaf-angle));
+	}
+	50% {
+		transform: rotate(calc(var(--leaf-angle) + var(--leaf-sway, 5deg)));
+	}
+}
+
+@keyframes fadeOut {
+	0% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}

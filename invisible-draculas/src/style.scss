@@ -1,0 +1,178 @@
+html, body {
+    background-color: #111;
+    background-image: url('http://sandbox.equalparts.io/halloween2017/trees-left.png'),
+                      url('http://sandbox.equalparts.io/halloween2017/trees-right.png');
+    background-position: top left, top right;
+    background-repeat: repeat-y;
+    height: 100%;
+}
+
+#shade {
+    background: #111;
+    height: 100%;
+    opacity: 0;
+    position: fixed;
+    width: 100%;
+    z-index: 99;
+}
+
+#cave {
+    position: relative;
+    z-index: 100;
+}
+
+.bat {
+  height: 100px;
+  position: absolute;
+  width: 60px;
+  
+  // when flying, hide the hanging image and show the flying image
+  &.flying {
+    .batBod:after {
+      display: none;
+    }
+
+    .batBod:before {
+      display: block;
+    }
+  }
+
+  &.flipped {
+    .batBod:before,
+    .batBod:after {
+      transform: scaleX(-1);
+    }
+  }
+}
+
+.batBod {
+  display: block;
+  height: 100%;
+  width: 100%;
+  
+  &:after,
+  &:before {
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: 100%;
+    content: '';
+    display: block;
+    height: 100%;
+    width: 100%;
+  }
+  
+  // hide the flying image at first
+  &:before {
+    display: none;
+  }
+}
+
+.batBod1:after {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/bats/bat1-hanging.png');
+}
+
+.batBod2:after {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/bats/bat2-hanging.png');
+}
+
+.batBod3:after {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/bats/bat3-hanging.png');
+}
+
+.batBod1:before {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/bats/bat1.png');
+}
+
+.batBod2:before {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/bats/bat2.png');
+}
+
+.batBod3:before {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/bats/bat3.png');
+}
+
+#finalFormWrapper {
+  position: fixed;
+  height: 300px;
+  left: 50%;
+  margin-left: -100px;
+  top: 10px;
+  width: 200px;
+  
+  & > div {
+    left: 0;
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 100%;
+  }
+}
+
+#shadow {
+  background-repeat: no-repeat;
+  background-size: 100%;
+  opacity: 0.98;
+  z-index: 3;
+}
+
+#revealed {
+  background-repeat: no-repeat;
+  background-size: 100%;
+  z-index: 2;
+}
+
+.vamp1 {
+  #revealed {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/bunnicula.png');
+  }
+  
+  #shadow {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/bunnicula-shadow.png');
+  }
+}
+
+.vamp2 {
+  #revealed {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/chocula.png');
+  }
+  #shadow {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/chocula-shadow.png');
+  }
+}
+
+.vamp3 {
+  #revealed {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/countvoncount.png');
+  }
+
+  #shadow {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/countvoncount-shadow.png');
+  }
+}
+
+.vamp4 {
+  #revealed {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/meierlink.png');
+  }
+
+  #shadow {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/meierlink-shadow.png');
+  }
+}
+
+.vamp5 {
+  #revealed {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/burns.png');
+  }
+
+  #shadow {
+    background-image: url('http://sandbox.equalparts.io/halloween2017/vampires/burns-shadow.png');
+  }
+}
+
+#flash {
+  background: radial-gradient(ellipse at center, #fefcea 0%,#f1da36 100%);
+  border-radius: 50%;
+  opacity: 0;
+  z-index: 1;
+}
