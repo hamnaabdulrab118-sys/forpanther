@@ -270,6 +270,10 @@ function esc(s) {
   if (s == null) return '';
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// Dropped into every uploaded <img>: a broken Storage URL (most often
+// wrong/missing security rules) would otherwise just show the browser's
+// bare broken-image icon with no clue why. This dims it and explains.
+const IMG_ERROR_ATTR = `onerror="this.onerror=null;this.style.opacity='0.35';this.style.filter='grayscale(1)';this.title='Couldn\\'t load this image — check Firebase Storage rules allow public read.';"`;
 function todayLabel() {
   return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
@@ -831,7 +835,7 @@ function letterModalOverlayHTML(letters) {
       ${letter.hasPhoto && letter.photoUrl ? `
         <div style="display:flex;justify-content:center;margin-top:28px;">
           <div style="background:white;padding:10px 10px 30px;box-shadow:0 8px 24px rgba(0,0,0,0.18);transform:rotate(1.5deg);max-width:260px;width:100%;">
-            <img src="${esc(letter.photoUrl)}" alt="" style="width:100%;aspect-ratio:1/1;object-fit:cover;display:block;" />
+            <img src="${esc(letter.photoUrl)}" alt="" ${IMG_ERROR_ATTR} style="width:100%;aspect-ratio:1/1;object-fit:cover;display:block;" />
             ${letter.photoCaption ? `<p class="font-serif" style="text-align:center;font-size:12px;color:#78716c;margin-top:10px;font-style:italic;">"${esc(letter.photoCaption)}"</p>` : ''}
           </div>
         </div>` : ''}
@@ -867,7 +871,7 @@ function galleryGridHTML(photos, isOwner) {
   return `<div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;">
     ${photos.map((p, i) => `
       <div class="gallery-tile" data-action="open-lightbox" data-idx="${i}">
-        <img src="${esc(p.url)}" alt="${esc(p.caption)}" />
+        <img src="${esc(p.url)}" alt="${esc(p.caption)}" ${IMG_ERROR_ATTR} />
         <div class="gallery-caption">
           <div style="position:absolute;bottom:0;left:0;right:0;padding:12px;">
             <p class="font-serif" style="color:white;font-size:12px;font-style:italic;margin-bottom:2px;">"${esc(p.caption)}"</p>
@@ -886,7 +890,7 @@ function lightboxOverlayHTML(photos) {
   return `
   <div data-action="close-lightbox" style="position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.2s ease-out;">
     <div data-action="stop" style="position:relative;max-width:520px;width:100%;">
-      <img src="${esc(p.url)}" alt="" style="width:100%;border-radius:24px;box-shadow:0 32px 80px rgba(0,0,0,0.8);display:block;" />
+      <img src="${esc(p.url)}" alt="" ${IMG_ERROR_ATTR} style="width:100%;border-radius:24px;box-shadow:0 32px 80px rgba(0,0,0,0.8);display:block;" />
       <div style="margin-top:16px;text-align:center;">
         <p class="font-serif" style="color:white;font-size:16px;font-style:italic;">"${esc(p.caption)}"</p>
         <p class="font-mono" style="color:var(--accent);font-size:12px;margin-top:6px;">📍 ${esc(p.location)} · ${esc(p.date)}</p>
@@ -1950,7 +1954,7 @@ function memoryPinFormHTML() {
         style="width:100%;background:#fff;border:1px solid #ddc9a0;border-radius:14px;padding:10px 16px;color:#2c2c22;font-size:13px;outline:none;margin-bottom:10px;" />
       <textarea data-scope="memoryMapDraft" data-field="note" placeholder="A little note about this memory..." rows="3" class="font-serif"
         style="width:100%;background:#fff;border:1px solid #ddc9a0;border-radius:14px;padding:12px 16px;color:#2c2c22;font-size:14px;outline:none;resize:vertical;margin-bottom:10px;">${esc(d.note)}</textarea>
-      ${d.photoUrl ? `<img src="${esc(d.photoUrl)}" style="width:100%;border-radius:14px;margin-bottom:10px;display:block;" />` : ''}
+      ${d.photoUrl ? `<img src="${esc(d.photoUrl)}" ${IMG_ERROR_ATTR} style="width:100%;border-radius:14px;margin-bottom:10px;display:block;" />` : ''}
       <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;border-radius:14px;border:1px dashed #c9b183;color:${state.memoryMapUploading ? '#b8a67c' : '#8a6a3f'};font-size:12px;cursor:${state.memoryMapUploading ? 'default' : 'pointer'};margin-bottom:10px;">
         ${state.memoryMapUploading ? '⏳ Uploading...' : (d.photoUrl ? '📷 Change photo' : '📷 Add a photo (optional)')}
         <input type="file" accept="image/*" style="display:none;" data-action="memorymap-photo-file" ${state.memoryMapUploading ? 'disabled' : ''} />
@@ -1976,7 +1980,7 @@ function memoryPinDetailHTML(pin, editable) {
         <button data-action="memorymap-close-detail" style="width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.06);border:none;cursor:pointer;color:#5a5a4c;">✕</button>
       </div>
       <h3 class="font-serif" style="font-size:22px;color:#2c2c22;margin-bottom:14px;">${esc(pin.title)}</h3>
-      ${pin.photoUrl ? `<img src="${esc(pin.photoUrl)}" style="width:100%;border-radius:14px;margin-bottom:14px;display:block;" />` : ''}
+      ${pin.photoUrl ? `<img src="${esc(pin.photoUrl)}" ${IMG_ERROR_ATTR} style="width:100%;border-radius:14px;margin-bottom:14px;display:block;" />` : ''}
       ${pin.note ? `<p class="font-serif" style="font-size:14px;color:#3a3a2e;line-height:1.6;margin-bottom:14px;">${esc(pin.note)}</p>` : ''}
       ${pin.voiceUrl ? `<audio controls src="${esc(pin.voiceUrl)}" style="width:100%;height:32px;margin-bottom:14px;"></audio>` : ''}
       ${editable ? `<button data-action="memorymap-delete-pin" data-id="${pin.id}" class="font-mono" style="width:100%;padding:10px 0;border-radius:14px;background:rgba(220,60,60,0.08);border:1px solid rgba(220,60,60,0.2);color:#c0392b;cursor:pointer;font-size:12px;">🗑 Delete this memory</button>` : ''}
@@ -2213,7 +2217,7 @@ function letterEditorHTML() {
               📁 Upload photo
               <input type="file" accept="image/*" style="display:none;" data-action="editor-file" data-field="photoUrl" />
             </label>
-            ${l.photoUrl ? `<img src="${esc(l.photoUrl)}" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:12px;border:1px solid rgba(125,211,252,0.3);" />` : ''}
+            ${l.photoUrl ? `<img src="${esc(l.photoUrl)}" alt="" ${IMG_ERROR_ATTR} style="width:80px;height:80px;object-fit:cover;border-radius:12px;border:1px solid rgba(125,211,252,0.3);" />` : ''}
             <input type="text" value="${esc(l.photoCaption)}" data-scope="editor" data-field="photoCaption" placeholder="Photo caption..." class="font-serif" style="${EDITOR_INPUT_STYLE}font-size:13px;" />
           </div>` : ''}
       </div>
@@ -2294,7 +2298,7 @@ function letterEditorHTML() {
         ${l.hasPhoto && l.photoUrl ? `
           <div style="display:flex;justify-content:center;margin-top:24px;">
             <div style="background:white;padding:8px 8px 28px;box-shadow:0 6px 20px rgba(0,0,0,0.15);transform:rotate(1.5deg);max-width:220px;">
-              <img src="${esc(l.photoUrl)}" alt="" style="width:100%;aspect-ratio:1/1;object-fit:cover;display:block;" />
+              <img src="${esc(l.photoUrl)}" alt="" ${IMG_ERROR_ATTR} style="width:100%;aspect-ratio:1/1;object-fit:cover;display:block;" />
               ${l.photoCaption ? `<p class="font-serif" style="text-align:center;font-size:11px;color:#78716c;margin-top:8px;font-style:italic;">"${esc(l.photoCaption)}"</p>` : ''}
             </div>
           </div>` : ''}
@@ -2416,7 +2420,7 @@ function ownerStudioHTML() {
           ${state.galleryUploading ? '⏳ Uploading...' : (state.newPhoto.url ? '📁 Change photo' : '📁 Upload a photo from your device')}
           <input type="file" accept="image/*" style="display:none;" data-action="gallery-photo-file" ${state.galleryUploading ? 'disabled' : ''} />
         </label>
-        ${state.newPhoto.url ? `<img src="${esc(state.newPhoto.url)}" style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;margin-bottom:10px;display:block;" />` : ''}
+        ${state.newPhoto.url ? `<img src="${esc(state.newPhoto.url)}" ${IMG_ERROR_ATTR} style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;margin-bottom:10px;display:block;" />` : ''}
         <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-bottom:8px;">Or paste an image URL instead:</p>
         <input type="text" value="${esc(state.newPhoto.url)}" data-scope="newPhoto" data-field="url" placeholder="https://..." class="font-mono" style="${OWNER_INPUT_STYLE}margin-bottom:10px;font-size:13px;" />
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">

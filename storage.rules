@@ -1,7 +1,13 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /music/{fileName} {
+    // Open read/write for every path the app uploads to (music/, mixtape/,
+    // memories/**, gallery/, and anything added later) — previously this
+    // only covered music/, so uploads to the newer paths (mixtape songs,
+    // memory-map photos/voice notes, gallery photos) succeeded but could
+    // never be read back, since an unmatched path falls through to
+    // Storage's default deny rather than an implicit allow.
+    match /{allPaths=**} {
       allow read: if true;
       allow write: if true;
     }
