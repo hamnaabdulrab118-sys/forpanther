@@ -159,6 +159,10 @@ button, input, textarea { font-family: inherit; }
 .particle.float { animation-name: particleFloat; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
 .theme-icon-badge { position: fixed; top: 16px; left: 16px; font-size: 28px; z-index: 5; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); animation: float 5s ease-in-out infinite; }
 
+/* Persistent month-theme animated background (see index.html comment) */
+#theme-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: #000814; }
+#theme-bg canvas { display: block; }
+
 /* Keyframes */
 @keyframes starFall { to { transform: translate3d(-30em,0,0); } }
 @keyframes starTailFade { 0%, 50% { width: var(--star-tail-length); opacity: 1; } 70%, 80% { width: 0; opacity: 0.4; } 100% { width: 0; opacity: 0; } }

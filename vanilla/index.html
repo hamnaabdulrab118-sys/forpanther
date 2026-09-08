@@ -9,8 +9,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 </head>
 <body>
+  <!-- Persistent month-theme background. Lives OUTSIDE #root on purpose: the
+       app re-renders #root's innerHTML on almost every action (typing,
+       clicking...), which would restart a heavy animated scene constantly if
+       it lived inside. This div is never touched by render(). -->
+  <div id="theme-bg"></div>
   <div id="root"></div>
   <script type="module" src="app.js"></script>
 </body>

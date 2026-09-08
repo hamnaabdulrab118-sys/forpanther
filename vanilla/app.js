@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 import { loadData, saveData, signInOwner, uploadMusicFile } from './db.js';
 import { mountMoonIcon, unmountMoonIcon, mountMoonSky, unmountMoonSky } from './moon3d.js';
+import { hasScene, mountMonthScene, unmountMonthScene } from './monthThemes.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
 const OWNER_PIN = '5425';
@@ -295,7 +296,9 @@ function applyTheme(id) {
   const el = document.documentElement.style;
   el.setProperty('--accent', t.accent);
   el.setProperty('--accent-rgb', t.accentRgb);
-  el.setProperty('--page-bg', t.pageBg);
+  // If this month has a real animated scene, let it show through the
+  // persistent #theme-bg layer instead of painting an opaque gradient.
+  el.setProperty('--page-bg', hasScene(id) ? 'transparent' : t.pageBg);
 }
 const PARTICLE_SEED = Array.from({ length: 22 }, () => ({
   x: rnd() * 100, delay: rnd() * 10, dur: 6 + rnd() * 6, size: 14 + rnd() * 10, top: rnd() * 60,
@@ -311,6 +314,13 @@ function themeExtrasHTML(themeId) {
     return `<span class="particle ${t.motion}" style="${posStyle}font-size:${p.size}px;animation-duration:${p.dur}s;animation-delay:${p.delay}s;">${t.particle}</span>`;
   }).join('');
   return `<div class="particles-bg">${particles}</div>${t.icon ? `<div class="theme-icon-badge">${t.icon}</div>` : ''}`;
+}
+// Stars + seasonal particles, OR nothing when the month has a real animated
+// scene (it renders into the persistent #theme-bg layer instead — see
+// monthThemes.js / afterRender()).
+function skyBackdropHTML(themeId) {
+  if (hasScene(themeId)) return '';
+  return starsHTML() + (themeId ? themeExtrasHTML(themeId) : '');
 }
 
 // ── State ────────────────────────────────────────────────────────────────
@@ -390,6 +400,15 @@ function afterRender(view) {
     unmountMoonIcon();
     unmountMoonSky();
   }
+  // Month-theme animated background — app-wide, but not on Moon Chat (it has
+  // its own independent sky system). Safe to call every render: it no-ops
+  // unless the active theme actually changed.
+  const themeId = (state.isRecipient && state.recipient.data) ? state.recipient.data.theme : state.owner.data.theme;
+  if (view !== 'moon' && hasScene(themeId)) {
+    mountMonthScene(themeId, document.getElementById('theme-bg'));
+  } else {
+    unmountMonthScene();
+  }
   const musicEl = root.querySelector('#letter-music-player');
   if (musicEl) musicEl.play().catch(() => {}); // autoplay can be blocked; controls stay visible either way
 }
@@ -399,7 +418,7 @@ function pinScreenHTML() {
   const { digits, error, shaking } = state.pin;
   return `
   <div style="min-height:100vh;background:var(--page-bg);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
-    ${starsHTML()}
+    ${skyBackdropHTML(state.owner.data.theme)}
     <div style="position:relative;z-index:10;width:100%;max-width:380px;padding:0 24px;display:flex;flex-direction:column;align-items:center;gap:32px;">
       <div style="text-align:center;animation:slideUp 0.5s ease-out forwards;">
         <div style="font-size:72px;margin-bottom:12px;display:inline-block;animation:float 6s ease-in-out infinite;">🦖🐾</div>
@@ -484,8 +503,7 @@ function recipientViewHTML() {
   ].filter(t => !d.hiddenTabs[t.id]);
   return `
   <div style="${PAGE_STYLE}">
-    ${starsHTML()}
-    ${themeExtrasHTML(d.theme)}
+    ${skyBackdropHTML(d.theme)}
     <div style="${INNER_STYLE}">
       <div style="padding-top:48px;padding-bottom:32px;text-align:center;animation:slideUp 0.5s ease-out;">
         <div style="font-size:64px;margin-bottom:14px;display:inline-block;animation:float 6s ease-in-out infinite;">🦖🐾</div>
@@ -1387,8 +1405,7 @@ function letterEditorHTML() {
 
   return `
   <div style="min-height:100vh;background:var(--page-bg);position:relative;">
-    ${starsHTML()}
-    ${themeExtrasHTML(state.owner.data.theme)}
+    ${skyBackdropHTML(state.owner.data.theme)}
     <div style="position:relative;z-index:10;max-width:680px;margin:0 auto;padding:24px 16px 100px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
         <div>
@@ -1559,8 +1576,7 @@ function ownerStudioHTML() {
 
   return `
   <div style="${PAGE_STYLE}">
-    ${starsHTML()}
-    ${themeExtrasHTML(data.theme)}
+    ${skyBackdropHTML(data.theme)}
     <div style="${INNER_STYLE}">
       <div style="padding-top:24px;padding-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
