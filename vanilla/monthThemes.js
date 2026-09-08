@@ -645,3 +645,114 @@ SCENES.july = {
     };
   },
 };
+
+// ── October: Autumn forestation ─────────────────────────────────────────
+// Adapted from "autumn-forestation" (Sameer Borate's algorithmic tree
+// generator, GPL). The original grows one more tree per keypress; here a
+// slow interval does that instead, since a background can't wait on input.
+SCENES.october = {
+  mount(container) {
+    let aborted = false;
+    const canvas = fullCanvas(container);
+    container.style.background = 'burlywood';
+    const ctx = canvas.getContext('2d');
+    const AUTUMN_COLORS = ['#996655', '#cc6633', '#cc8844', '#cc8866', '#ff8833', '#ffbb55'];
+    const treeNumbers = 10;
+    let width, height;
+
+    function branch(depth, treeHeight, spread, leaveType, leavesColor) {
+      if (depth < 12) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -height / treeHeight);
+        ctx.strokeStyle = '#3F3F3F';
+        ctx.stroke();
+        ctx.translate(0, -height / treeHeight);
+        ctx.rotate(-(Math.random() * 0.1) + 0.1);
+        if (Math.random() < spread) {
+          const rotateLeft = (Math.random() * (4 - 3 + 1) + 3) * 0.1;
+          const rotateRight = (Math.random() * (7 - 6 + 1) + 6) * 0.1;
+          ctx.rotate(-rotateLeft);
+          ctx.scale(0.7, 0.7);
+          ctx.save();
+          branch(depth + 1, treeHeight, spread, leaveType, leavesColor);
+          ctx.restore();
+          ctx.rotate(rotateRight);
+          ctx.save();
+          branch(depth + 1, treeHeight, spread, leaveType, leavesColor);
+          ctx.restore();
+        } else {
+          branch(depth, treeHeight, spread, leaveType, leavesColor);
+        }
+      } else {
+        ctx.fillStyle = leavesColor;
+        ctx.fillRect(0, 0, leaveType, 200);
+        ctx.stroke();
+      }
+    }
+    function drawTree(index, treeHeight) {
+      const leavesColor = AUTUMN_COLORS[Math.floor(Math.random() * AUTUMN_COLORS.length)];
+      const spread = Math.max(0.3, Math.min(1, Math.random() * 10 || 0.6));
+      ctx.save();
+      ctx.translate(index * width / treeNumbers - (Math.random() * 100 - Math.random() * 100), height);
+      ctx.lineWidth = 1 + Math.random() * 10;
+      ctx.lineJoin = 'round';
+      branch(0, treeHeight, spread, 200, leavesColor);
+      ctx.restore();
+    }
+
+    function resize() {
+      width = canvas.width = container.clientWidth || window.innerWidth;
+      height = canvas.height = container.clientHeight || window.innerHeight;
+      ctx.clearRect(0, 0, width, height);
+      for (let i = 0; i < treeNumbers; i++) drawTree(i, 10);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const growInterval = setInterval(() => {
+      if (aborted) return;
+      drawTree(Math.round(Math.random() * (treeNumbers + 1)), Math.round(Math.random() * (15 - 5 + 1) + 5));
+    }, 4000);
+
+    return () => {
+      aborted = true;
+      clearInterval(growInterval);
+      window.removeEventListener('resize', resize);
+    };
+  },
+};
+
+// ── November: Dracula ───────────────────────────────────────────────────
+// "invisible-draculas" is a scroll-triggered story (bats fly away as you
+// scroll past them, revealing a vampire) built around specific copyrighted
+// character images (Count Chocula, Sesame Street's Count, etc.) on a
+// personal image host — none of that fits a fixed, looping ambient
+// background. This is an original gothic bats-and-lightning scene instead,
+// using emoji like the rest of the app rather than any character art.
+const NOVEMBER_BATS = Array.from({ length: 10 }, () => ({
+  y: rand(5, 70), delay: rand(0, 20), dur: rand(14, 24), size: rand(18, 34), reverse: Math.random() > 0.5,
+}));
+SCENES.november = {
+  mount(container) {
+    const shadow = container.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = `
+      .wrap { position:absolute; inset:0; overflow:hidden; background:radial-gradient(ellipse at 50% 20%,#2a0f1e 0%,#160812 55%,#0a0308 100%); }
+      .moon { position:absolute; top:8%; right:12%; width:90px; height:90px; border-radius:50%; background:radial-gradient(circle at 35% 35%,#e8dcc8,#8a7a6a); box-shadow:0 0 50px rgba(200,180,150,0.35); }
+      .bat { position:absolute; font-size:24px; animation-name:batFly; animation-timing-function:linear; animation-iteration-count:infinite; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
+      @keyframes batFly { 0% { transform:translateX(-10vw) translateY(0) scaleX(1); } 48% { transform:translateX(55vw) translateY(-30px) scaleX(1); } 50% { transform:translateX(58vw) translateY(-30px) scaleX(-1); } 100% { transform:translateX(110vw) translateY(10px) scaleX(-1); } }
+      .bat.rev { animation-direction:reverse; }
+      .flash { position:absolute; inset:0; background:rgba(220,210,255,0.5); opacity:0; animation:novFlash 9s ease-in-out infinite; }
+      @keyframes novFlash { 0%,93%,100% { opacity:0; } 94%,96% { opacity:0.6; } 95% { opacity:0.1; } }
+    `;
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    wrap.innerHTML = `<div class="moon"></div>${NOVEMBER_BATS.map(b =>
+      `<span class="bat${b.reverse ? ' rev' : ''}" style="top:${b.y}%;font-size:${b.size}px;animation-duration:${b.dur}s;animation-delay:${b.delay}s;">🦇</span>`
+    ).join('')}<div class="flash"></div>`;
+    shadow.appendChild(style);
+    shadow.appendChild(wrap);
+    return () => {};
+  },
+};
