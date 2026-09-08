@@ -197,3 +197,316 @@ SCENES.april = {
     return () => {};
   },
 };
+
+// ── August: Jellyfish in the ocean ──────────────────────────────────────
+// Adapted from "jellyfish-in-the-ocean-animation" — self-contained inline
+// SVG jellyfish (GSAP swim timeline) over a Canvas2D bubble field.
+SCENES.august = {
+  mount(container) {
+    let aborted = false;
+    let animId = null;
+    let tl = null;
+    let resizeHandler = null;
+    const shadow = container.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = `
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      .wrap { position:absolute; inset:0; overflow:hidden; background:linear-gradient(#17a2b8, #072324); }
+      .container { width:100%; height:100%; position:relative; }
+      svg.jellyfish { width:100%; height:100%; max-width:200px; max-height:200px; position:absolute; bottom:10vh; left:50%; transform:translateX(-50%); overflow:visible; }
+      canvas#bubbles-canvas { position:absolute; width:100%; height:100%; top:0; left:0; pointer-events:none; }
+    `;
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    shadow.appendChild(style);
+    shadow.appendChild(wrap);
+
+    fetch('themes/august/scene.html').then(r => r.text()).then(html => {
+      if (aborted) return;
+      wrap.innerHTML = html;
+      const canvas = wrap.querySelector('#bubbles-canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Bubbles (adapted from the pen's Bubble()/InitBubbles())
+      const fillArray = ['rgba(138, 204, 197, ', 'rgba(62, 173, 178, ', 'rgba(0, 79, 88, ', 'rgba(0, 107, 118, '];
+      const rnd2 = (min, max) => min + Math.random() * (max - min);
+      const makeBubble = (h) => {
+        const b = {
+          x: rnd2(0, canvas.offsetWidth), y: rnd2(0, h), alpha: rnd2(0, 1),
+          fill: fillArray[Math.floor(Math.random() * fillArray.length)],
+          radius: rnd2(0.3, 7), angle: rnd2(-1, 1), density: rnd2(0, 1000), speed: 0, wind: 0,
+        };
+        return b;
+      };
+      let bubbles = [];
+      function resize() {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        bubbles = Array.from({ length: 100 }, () => makeBubble(container.clientHeight || window.innerHeight));
+      }
+      resizeHandler = resize;
+      resize();
+      window.addEventListener('resize', resizeHandler);
+
+      function tick() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const b of bubbles) {
+          b.angle += 0.02;
+          if (b.y < 0) {
+            b.y = canvas.height;
+            b.x = rnd2(0, canvas.width);
+          } else {
+            b.y -= b.speed;
+            b.x += b.wind;
+            b.speed = 0.02 * (Math.cos(b.angle + b.density) + 1 + b.radius * 3);
+            b.wind = 0.1 * (Math.sin(b.angle) * 2);
+          }
+          ctx.beginPath();
+          ctx.strokeStyle = b.fill + '1)';
+          ctx.lineWidth = 1;
+          ctx.arc(b.x, b.y, b.radius, 0, 2 * Math.PI);
+          ctx.stroke();
+          ctx.fillStyle = b.fill + b.alpha + ')';
+          ctx.fill();
+          ctx.closePath();
+        }
+        animId = requestAnimationFrame(tick);
+      }
+      tick();
+
+      // Jellyfish swim (GSAP timeline, ported from the pen's script.js)
+      if (window.gsap) {
+        const jellyFish = wrap.querySelector('.jellyfish');
+        const leftLeg = jellyFish.querySelector('#left-leg');
+        const rightLeg = jellyFish.querySelector('#right-leg');
+        const head = jellyFish.querySelector('#head');
+        tl = window.gsap.timeline({ repeat: -1, repeatDelay: 2 })
+          .to(jellyFish, { duration: 2, transformOrigin: '0% 0%', xPercent: '-=10', yPercent: '-=20', ease: 'Power2.easeOut', rotation: -3 }, 0.5)
+          .to(jellyFish, { duration: 4, yPercent: 0, xPercent: 0, ease: 'Power1.easeInOut', rotation: 0 })
+          .to(head, { duration: 1.5, transformOrigin: '50% 50%', scaleY: 1.2, scaleX: 0.9, yoyo: true, repeat: 1, yoyoEase: 'Power1.easeInOut', ease: 'Power2.easeOut' }, 0)
+          .to(leftLeg, { transformOrigin: '100% 0', duration: 2, rotation: -25, yoyo: true, repeat: 1, ease: 'Power3.easeOut' }, 0.5)
+          .to(rightLeg, { transformOrigin: '0 0', duration: 2, rotation: 25, yoyo: true, repeat: 1, ease: 'Power3.easeOut' }, 1);
+      }
+    }).catch(e => console.error('❌ August scene failed to load:', e));
+
+    return () => {
+      aborted = true;
+      if (animId) cancelAnimationFrame(animId);
+      if (resizeHandler) window.removeEventListener('resize', resizeHandler);
+      if (tl) tl.kill();
+    };
+  },
+};
+
+// ── June: Tides — cinematic ocean ───────────────────────────────────────
+// Adapted from "tidesa-cinematic-canvas-ocean" — the full sky/sun/ocean-swell
+// canvas render is kept close to the original (it's excellent as-is); the
+// manual time-of-day slider and mouse-follow sun are dropped (not right for
+// a passive background) and replaced with the day slowly drifting on its own.
+SCENES.june = {
+  mount(container) {
+    const canvas = fullCanvas(container);
+    const ctx = canvas.getContext('2d');
+    let W, H, DPR, horizonY, oceanH;
+    function resize() {
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = container.clientWidth || window.innerWidth;
+      H = container.clientHeight || window.innerHeight;
+      canvas.width = W * DPR;
+      canvas.height = H * DPR;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      horizonY = H * 0.42;
+      oceanH = H - horizonY;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const KEYS = [
+      { t: 0.0, skyTop: [38, 44, 86], skyHor: [247, 176, 128], sun: [255, 238, 206], glow: [255, 178, 120], wFar: [176, 150, 150], wNear: [34, 62, 84], foam: [255, 244, 234], sunH: 0.1, glit: 0.7, star: 0 },
+      { t: 0.28, skyTop: [64, 134, 206], skyHor: [188, 222, 236], sun: [255, 255, 246], glow: [255, 250, 224], wFar: [120, 186, 196], wNear: [20, 92, 114], foam: [255, 255, 255], sunH: 0.55, glit: 0.5, star: 0 },
+      { t: 0.5, skyTop: [58, 142, 214], skyHor: [176, 216, 230], sun: [255, 255, 248], glow: [255, 252, 232], wFar: [96, 178, 188], wNear: [16, 96, 120], foam: [255, 255, 255], sunH: 0.92, glit: 0.45, star: 0 },
+      { t: 0.68, skyTop: [74, 92, 156], skyHor: [255, 202, 120], sun: [255, 236, 194], glow: [255, 168, 92], wFar: [206, 164, 118], wNear: [34, 78, 98], foam: [255, 244, 228], sunH: 0.3, glit: 0.95, star: 0 },
+      { t: 0.84, skyTop: [48, 38, 86], skyHor: [255, 108, 68], sun: [255, 206, 148], glow: [255, 92, 58], wFar: [188, 98, 84], wNear: [30, 42, 72], foam: [255, 222, 200], sunH: 0.06, glit: 1.0, star: 0.15 },
+      { t: 1.0, skyTop: [8, 12, 30], skyHor: [34, 44, 82], sun: [228, 234, 255], glow: [140, 164, 216], wFar: [28, 42, 76], wNear: [6, 16, 32], foam: [196, 208, 234], sunH: 0.55, glit: 0.55, star: 1 },
+    ];
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const lerpRGB = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+    const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+    function getPalette(t) {
+      let i = 0;
+      while (i < KEYS.length - 1 && t > KEYS[i + 1].t) i++;
+      const a = KEYS[i], b = KEYS[Math.min(i + 1, KEYS.length - 1)];
+      const span = b.t - a.t || 1;
+      const k = Math.max(0, Math.min(1, (t - a.t) / span));
+      return {
+        skyTop: lerpRGB(a.skyTop, b.skyTop, k), skyHor: lerpRGB(a.skyHor, b.skyHor, k),
+        sun: lerpRGB(a.sun, b.sun, k), glow: lerpRGB(a.glow, b.glow, k),
+        wFar: lerpRGB(a.wFar, b.wFar, k), wNear: lerpRGB(a.wNear, b.wNear, k),
+        foam: lerpRGB(a.foam, b.foam, k), sunH: lerp(a.sunH, b.sunH, k),
+        glit: lerp(a.glit, b.glit, k), star: lerp(a.star, b.star, k),
+      };
+    }
+
+    const stars = Array.from({ length: 140 }, () => ({ x: Math.random(), y: Math.random() * 0.4, r: Math.random() * 1.2 + 0.3, tw: Math.random() * Math.PI * 2 }));
+    const clouds = Array.from({ length: 5 }, () => ({ x: Math.random(), y: 0.08 + Math.random() * 0.18, w: 0.18 + Math.random() * 0.22, speed: 0.000015 + Math.random() * 0.00002 }));
+    const birds = Array.from({ length: 4 }, () => ({ x: Math.random(), y: 0.15 + Math.random() * 0.18, speed: 0.00004 + Math.random() * 0.00004, size: 8 + Math.random() * 6, flap: Math.random() * Math.PI * 2 }));
+
+    let timeOfDay = 0.6; // starts at Golden Hour, drifts slowly on its own
+    let T = 0;
+    let animId;
+
+    function draw() {
+      T += 0.016;
+      timeOfDay = (timeOfDay + 0.00004) % 1; // one full day/night cycle every ~7 minutes
+      const P = getPalette(timeOfDay);
+      const sunX = W * 0.5;
+      const sunY = horizonY - P.sunH * horizonY * 0.82;
+
+      const sky = ctx.createLinearGradient(0, 0, 0, horizonY + oceanH * 0.1);
+      sky.addColorStop(0, rgb(P.skyTop));
+      sky.addColorStop(0.7, rgb(lerpRGB(P.skyTop, P.skyHor, 0.55)));
+      sky.addColorStop(1, rgb(P.skyHor));
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, horizonY + 2);
+
+      if (P.star > 0.01) {
+        stars.forEach((s) => {
+          const tw = 0.5 + 0.5 * Math.sin(T * 2 + s.tw);
+          ctx.fillStyle = rgb([255, 255, 255], P.star * tw * 0.9);
+          ctx.beginPath();
+          ctx.arc(s.x * W, s.y * horizonY, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      const glowR = Math.min(W, H) * 0.5;
+      const g = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, glowR);
+      g.addColorStop(0, rgb(P.glow, 0.55));
+      g.addColorStop(0.25, rgb(P.glow, 0.22));
+      g.addColorStop(1, rgb(P.glow, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, horizonY + oceanH * 0.4);
+
+      const sunR = Math.min(W, H) * 0.045;
+      const sd = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR);
+      sd.addColorStop(0, rgb(P.sun, 1));
+      sd.addColorStop(0.7, rgb(P.sun, 0.95));
+      sd.addColorStop(1, rgb(P.sun, 0.2));
+      ctx.fillStyle = sd;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+      ctx.fill();
+
+      clouds.forEach((c) => {
+        c.x += c.speed;
+        if (c.x > 1.3) c.x = -0.3;
+        const cx = c.x * W, cy = c.y * horizonY, cw = c.w * W;
+        ctx.fillStyle = rgb(lerpRGB(P.skyHor, [255, 255, 255], 0.25), 0.16);
+        for (let j = 0; j < 4; j++) {
+          ctx.beginPath();
+          ctx.ellipse(cx + j * cw * 0.22, cy + Math.sin(j) * 6, cw * (0.3 - j * 0.04), cw * 0.06, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      birds.forEach((b) => {
+        b.x += b.speed;
+        b.flap += 0.15;
+        if (b.x > 1.2) { b.x = -0.2; b.y = 0.15 + Math.random() * 0.18; }
+        const bx = b.x * W, by = b.y * horizonY;
+        const wing = Math.sin(b.flap) * b.size * 0.5;
+        ctx.strokeStyle = rgb(lerpRGB(P.skyTop, [0, 0, 0], 0.3), 0.5);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(bx - b.size, by + wing);
+        ctx.quadraticCurveTo(bx, by - b.size * 0.3, bx, by);
+        ctx.quadraticCurveTo(bx, by - b.size * 0.3, bx + b.size, by + wing);
+        ctx.stroke();
+      });
+
+      const haze = ctx.createLinearGradient(0, horizonY - 40, 0, horizonY + 40);
+      haze.addColorStop(0, rgb(P.skyHor, 0));
+      haze.addColorStop(0.5, rgb(P.skyHor, 0.45));
+      haze.addColorStop(1, rgb(P.wFar, 0));
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, horizonY - 40, W, 80);
+
+      const NUM = 26;
+      for (let i = 0; i < NUM; i++) {
+        const depth = i / (NUM - 1);
+        const yTop = horizonY + Math.pow(depth, 1.9) * oceanH;
+        const amp = lerp(0.6, 30, depth);
+        const wlen = lerp(46, 340, depth);
+        const speed = lerp(0.25, 0.9, depth);
+        const phase = T * speed + i * 0.9;
+        const col = lerpRGB(P.wFar, P.wNear, depth);
+
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        ctx.lineTo(0, yTop + Math.sin(phase) * amp);
+        for (let x = 0; x <= W; x += 6) {
+          const y = yTop + Math.sin(x / wlen + phase) * amp + Math.sin(x / (wlen * 0.4) + phase * 1.6) * amp * 0.3;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(W, H);
+        ctx.closePath();
+        ctx.fillStyle = rgb(col);
+        ctx.fill();
+
+        ctx.lineWidth = lerp(0.6, 2.2, depth);
+        ctx.beginPath();
+        let started = false;
+        for (let x = 0; x <= W; x += 6) {
+          const y = yTop + Math.sin(x / wlen + phase) * amp + Math.sin(x / (wlen * 0.4) + phase * 1.6) * amp * 0.3;
+          started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), (started = true));
+        }
+        const sunCloseness = 1 - Math.min(1, Math.abs(sunX - W * 0.5) / (W * 0.5));
+        ctx.strokeStyle = rgb(lerpRGB(col, P.sun, 0.55), lerp(0.05, 0.3, depth));
+        ctx.stroke();
+
+        if (depth > 0.62) {
+          const foamA = (depth - 0.62) / 0.38;
+          for (let x = 0; x <= W; x += 9) {
+            const y = yTop + Math.sin(x / wlen + phase) * amp + Math.sin(x / (wlen * 0.4) + phase * 1.6) * amp * 0.3;
+            const crest = Math.sin(x / wlen + phase);
+            if (crest > 0.55 && Math.random() > 0.45) {
+              ctx.fillStyle = rgb(P.foam, foamA * (0.18 + Math.random() * 0.35));
+              ctx.fillRect(x + (Math.random() - 0.5) * 6, y - Math.random() * 3, 1.5 + Math.random() * 3, 1.5 + Math.random() * 2);
+            }
+          }
+        }
+      }
+
+      const glitterCount = 220;
+      for (let i = 0; i < glitterCount; i++) {
+        const dy = Math.random();
+        const y = horizonY + Math.pow(dy, 1.5) * oceanH;
+        const spread = lerp(6, W * 0.3, dy);
+        const x = sunX + (Math.random() - 0.5) * 2 * spread;
+        const distFade = 1 - Math.min(1, Math.abs(x - sunX) / (spread + 1));
+        const flick = 0.25 + Math.random() * 0.75;
+        const a = distFade * distFade * flick * P.glit * (1 - dy * 0.25);
+        if (a < 0.02) continue;
+        ctx.fillStyle = rgb(P.sun, a * 0.85);
+        const len = 1 + Math.random() * (2 + dy * 4);
+        ctx.fillRect(x, y, len, 1 + dy);
+      }
+
+      const vig = ctx.createRadialGradient(W / 2, H * 0.55, H * 0.25, W / 2, H * 0.55, H * 0.9);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,8,0.34)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+
+      animId = requestAnimationFrame(draw);
+    }
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resize);
+    };
+  },
+};
