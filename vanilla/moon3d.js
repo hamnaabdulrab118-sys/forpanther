@@ -69,11 +69,18 @@ export function mountMoonIcon(canvas, day) {
 
   const moon = new THREE.Mesh(
     new THREE.SphereGeometry(1, 40, 40),
-    new THREE.MeshStandardMaterial({ map: getMoonTexture(), roughness: 0.95, metalness: 0 })
+    new THREE.MeshLambertMaterial({ map: getMoonTexture() })
   );
   scene.add(moon);
 
-  const angle = (2 * Math.PI * day) / 30;
+  // moonPhaseInfo() (app.js) computes illum = (1-cos(angle))/2, so day 15
+  // (angle=π) is "Full Moon" (illum≈1) — the near/camera side should be lit.
+  // The camera sits at z=+4, so the light needs to be on the +Z side at
+  // that angle too; offsetting by π puts it there (and puts it on the -Z/
+  // far side at day 0's "New Moon", correctly dark). Without this offset
+  // the light ends up directly *behind* the sphere at the default day 15,
+  // rendering the icon almost black-on-black — invisible against the page.
+  const angle = (2 * Math.PI * day) / 30 + Math.PI;
   const light = new THREE.DirectionalLight(0xfff3d6, 1.6);
   light.position.set(Math.sin(angle) * 5, 1.2, Math.cos(angle) * 5);
   scene.add(light);
@@ -138,10 +145,10 @@ export function mountMoonSky(canvas, { density, extra }) {
     light.position.set(2, 2, 5);
     scene.add(light);
     scene.add(new THREE.AmbientLight(0x223344, 0.5));
-    const mars = new THREE.Mesh(new THREE.SphereGeometry(1.1, 24, 24), new THREE.MeshStandardMaterial({ color: 0xb5502e, roughness: 0.8 }));
+    const mars = new THREE.Mesh(new THREE.SphereGeometry(1.1, 24, 24), new THREE.MeshLambertMaterial({ color: 0xb5502e }));
     mars.position.set(-4, 2, -8);
     scene.add(mars);
-    const jupiter = new THREE.Mesh(new THREE.SphereGeometry(1.6, 24, 24), new THREE.MeshStandardMaterial({ color: 0xc9a97a, roughness: 0.7 }));
+    const jupiter = new THREE.Mesh(new THREE.SphereGeometry(1.6, 24, 24), new THREE.MeshLambertMaterial({ color: 0xc9a97a }));
     jupiter.position.set(3, 3, -12);
     scene.add(jupiter);
   } else if (extra === 'rings') {
@@ -149,7 +156,7 @@ export function mountMoonSky(canvas, { density, extra }) {
     light.position.set(-3, 2, 5);
     scene.add(light);
     scene.add(new THREE.AmbientLight(0x223344, 0.5));
-    const saturn = new THREE.Mesh(new THREE.SphereGeometry(1.4, 30, 30), new THREE.MeshStandardMaterial({ color: 0xd8c48a, roughness: 0.7 }));
+    const saturn = new THREE.Mesh(new THREE.SphereGeometry(1.4, 30, 30), new THREE.MeshLambertMaterial({ color: 0xd8c48a }));
     saturn.position.set(2.5, -1, -9);
     scene.add(saturn);
     const ring = new THREE.Mesh(
