@@ -65,6 +65,13 @@ export async function uploadMemoryFile(file, kind) {
   return getDownloadURL(storageRef);
 }
 
+export async function uploadGalleryPhoto(file) {
+  const path = `gallery/${Date.now()}-${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
 export async function saveData(data) {
   try {
     await setDoc(doc(db, 'forpanther', DOC_ID), {

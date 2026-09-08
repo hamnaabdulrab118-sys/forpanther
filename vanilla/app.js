@@ -5,7 +5,7 @@
 //   Share URL   → yoursite.com/?gift=main
 //   Panther opens URL → app reads "main" from Firestore → shows letters
 // ═══════════════════════════════════════════════════════════════════════
-import { loadData, saveData, signInOwner, uploadMusicFile, uploadMixtapeSong, uploadMemoryFile } from './db.js';
+import { loadData, saveData, signInOwner, uploadMusicFile, uploadMixtapeSong, uploadMemoryFile, uploadGalleryPhoto } from './db.js';
 import { mountMoonIcon, unmountMoonIcon, mountMoonSky, unmountMoonSky } from './moon3d.js';
 import { hasScene, mountMonthScene, unmountMonthScene } from './monthThemes.js';
 
@@ -485,6 +485,7 @@ const state = {
   memoryMapViewingId: null,
   memoryMapUploading: false,
   recipientPinForm: { pin: '' },
+  galleryUploading: false,
 };
 
 const root = document.getElementById('root');
@@ -1116,7 +1117,8 @@ function moonSkyHTML(effectId) {
   // dots/planets/rings 2D fallbacks are skipped; the other atmospheric extras
   // (aurora, nebula, comet, fog, etc.) stay CSS/SVG overlays on top.
   const is3dExtra = t.extra === 'planets' || t.extra === 'rings';
-  return `${skyShootingHTML(t.shooting)}<canvas id="moon-3d-sky" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
+  return `<div style="position:absolute;inset:0;z-index:0;">${starsHTML(0.7)}</div>
+    ${skyShootingHTML(t.shooting)}<canvas id="moon-3d-sky" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
     <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;">${is3dExtra ? '' : moonExtraHTML(t.extra)}</div>`;
 }
 
@@ -1164,8 +1166,12 @@ function moonHeaderHTML(title, subtitle, moonDay, effectId) {
   const glowSize = 30 + illum * 30;
   return `
     ${moonSkyHTML(effectId)}
-    <div style="position:absolute;top:20px;right:20px;pointer-events:none;z-index:2;filter:drop-shadow(0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35}));">
-      <canvas id="moon-3d-icon" width="72" height="72" style="width:72px;height:72px;display:block;"></canvas>
+    <div style="position:absolute;top:20px;right:20px;width:72px;height:72px;pointer-events:none;z-index:2;filter:drop-shadow(0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35}));">
+      <!-- Always-visible 2D fallback (pure SVG, no WebGL/network dependency) sits
+           underneath the 3D canvas — if Three.js fails to load or WebGL isn't
+           available on the device, the moon still shows instead of a blank spot. -->
+      <div style="position:absolute;inset:0;">${moonPhaseSVG(moonDay, 72, 'headericon')}</div>
+      <canvas id="moon-3d-icon" width="72" height="72" style="position:absolute;inset:0;width:72px;height:72px;display:block;"></canvas>
     </div>
     <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
       <div>
@@ -2046,31 +2052,37 @@ function buildCollectionEntries(data) {
     if (l.hasMusic) extras.push('🎵 music');
     if (l.hasAudio) extras.push('🎙️ voice');
     entries.push({
+      kind: 'letter', id: l.id,
       icon: '✉️', title: l.title || l.label || 'A letter',
       sub: extras.join(' · ') || null,
       date: l.date || formatEntryDate(l.createdAt), ts: l.createdAt || 0,
     });
   });
   (data.gallery || []).forEach(p => entries.push({
+    kind: 'photo', id: p.id,
     icon: '📷', title: p.caption || 'A photo', sub: p.location || null,
     date: p.date || formatEntryDate(p.createdAt), ts: p.createdAt || 0,
   }));
   (data.moonMessages || []).forEach(m => entries.push({
+    kind: 'moon', id: m.id,
     icon: '🌙', title: m.text.length > 70 ? m.text.slice(0, 70) + '…' : m.text,
     sub: m.from === 'dino' ? 'You, to Panther' : "Moon's reply",
     date: formatEntryDate(m.createdAt), ts: m.createdAt || 0,
   }));
   ((data.mixtape && data.mixtape.songs) || []).forEach(s => entries.push({
+    kind: 'song', id: s.id,
     icon: '🎵', title: s.title || 'Untitled song', sub: s.artist || null,
     date: formatEntryDate(s.addedAt), ts: s.addedAt || 0,
   }));
   ((data.memoryMap && data.memoryMap.pins) || []).forEach(pn => entries.push({
+    kind: 'pin', id: pn.id,
     icon: '📍', title: pn.title || 'A memory',
     sub: pn.note ? (pn.note.length > 60 ? pn.note.slice(0, 60) + '…' : pn.note) : null,
     date: pn.date || formatEntryDate(pn.createdAt), ts: pn.createdAt || 0,
   }));
   if (data.bouquet && data.bouquet.flowers && data.bouquet.flowers.length) {
     entries.push({
+      kind: 'bouquet', id: 'bouquet',
       icon: '💐', title: `Bouquet · ${data.bouquet.flowers.length} blooms`, sub: data.bouquet.note || null,
       date: formatEntryDate(data.bouquet.updatedAt), ts: data.bouquet.updatedAt || 0,
     });
@@ -2078,8 +2090,17 @@ function buildCollectionEntries(data) {
   entries.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
   return entries;
 }
+async function deleteCollectionEntry(kind, id) {
+  if (kind === 'letter') return deleteLetter(id);
+  if (kind === 'photo') return deletePhoto(id);
+  if (kind === 'moon') return moonDelete(id);
+  if (kind === 'song') return removeMixtapeSong(state.owner.data.mixtape.songs.findIndex(s => s.id === id));
+  if (kind === 'pin') return deleteMemoryPin(id);
+  if (kind === 'bouquet') return persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, flowers: [], note: '', updatedAt: new Date().toISOString() } });
+}
 function collectionHTML() {
-  const data = (state.isRecipient && state.recipient.data) ? state.recipient.data : state.owner.data;
+  const isOwnerView = !(state.isRecipient && state.recipient.data);
+  const data = isOwnerView ? state.owner.data : state.recipient.data;
   const entries = buildCollectionEntries(data);
   return `
   <div style="${PAGE_STYLE}">
@@ -2103,6 +2124,7 @@ function collectionHTML() {
                 ${e.sub ? `<p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.55);margin-top:3px;">${esc(e.sub)}</p>` : ''}
               </div>
               ${e.date ? `<p class="font-mono" style="font-size:10px;color:var(--accent);white-space:nowrap;flex-shrink:0;">${esc(e.date)}</p>` : ''}
+              ${isOwnerView ? `<button data-action="collection-delete-entry" data-kind="${e.kind}" data-id="${esc(e.id)}" title="Delete" style="width:26px;height:26px;border-radius:50%;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#f87171;cursor:pointer;flex-shrink:0;font-size:12px;display:flex;align-items:center;justify-content:center;">🗑</button>` : ''}
             </div>`).join('')}
         </div>` : emptyStateHTML('Nothing sent yet — start with a letter, a photo, or a song.', '📚')}
     </div>
@@ -2390,7 +2412,13 @@ function ownerStudioHTML() {
       <h2 class="font-serif" style="font-size:22px;font-weight:700;color:white;margin-bottom:20px;">Gallery (${data.gallery.length})</h2>
       <div class="glass-gold" style="border-radius:24px;padding:22px;margin-bottom:20px;">
         <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Add a photo</p>
-        <input type="text" value="${esc(state.newPhoto.url)}" data-scope="newPhoto" data-field="url" placeholder="Paste image URL..." class="font-mono" style="${OWNER_INPUT_STYLE}margin-bottom:10px;font-size:13px;" />
+        <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 0;border-radius:14px;border:1px dashed rgba(var(--accent-rgb),0.35);color:${state.galleryUploading ? 'rgba(var(--accent-rgb),0.5)' : 'var(--accent)'};font-size:13px;cursor:${state.galleryUploading ? 'default' : 'pointer'};margin-bottom:10px;">
+          ${state.galleryUploading ? '⏳ Uploading...' : (state.newPhoto.url ? '📁 Change photo' : '📁 Upload a photo from your device')}
+          <input type="file" accept="image/*" style="display:none;" data-action="gallery-photo-file" ${state.galleryUploading ? 'disabled' : ''} />
+        </label>
+        ${state.newPhoto.url ? `<img src="${esc(state.newPhoto.url)}" style="width:100%;max-height:180px;object-fit:cover;border-radius:14px;margin-bottom:10px;display:block;" />` : ''}
+        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.35);margin-bottom:8px;">Or paste an image URL instead:</p>
+        <input type="text" value="${esc(state.newPhoto.url)}" data-scope="newPhoto" data-field="url" placeholder="https://..." class="font-mono" style="${OWNER_INPUT_STYLE}margin-bottom:10px;font-size:13px;" />
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
           <input type="text" value="${esc(state.newPhoto.caption)}" data-scope="newPhoto" data-field="caption" placeholder="Caption..." class="font-serif" style="${OWNER_INPUT_STYLE}font-size:13px;" />
           <input type="text" value="${esc(state.newPhoto.location)}" data-scope="newPhoto" data-field="location" placeholder="Location..." class="font-mono" style="${OWNER_INPUT_STYLE}font-size:13px;" />
@@ -2842,6 +2870,11 @@ function handleClick(e) {
       else state.owner.tab = 'home';
       render();
       break;
+    case 'collection-delete-entry':
+      if (window.confirm('Delete this from the Collection? This removes it everywhere, not just here.')) {
+        deleteCollectionEntry(el.dataset.kind, el.dataset.id);
+      }
+      break;
     case 'recipient-next': {
       const d = state.recipient.data;
       state.recipient.tab = stepRecipientTab(d, state.recipient.tab, 1) || 'collection';
@@ -2993,6 +3026,21 @@ function handleChange(e) {
       })
       .finally(() => {
         state.mixtapeUploading = false;
+        render();
+      });
+  } else if (action === 'gallery-photo-file') {
+    const file = el.files && el.files[0];
+    if (!file) return;
+    state.galleryUploading = true;
+    render();
+    uploadGalleryPhoto(file)
+      .then(url => { state.newPhoto.url = url; })
+      .catch(err => {
+        console.error('❌ Gallery photo upload error:', err);
+        window.alert('Photo upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+      })
+      .finally(() => {
+        state.galleryUploading = false;
         render();
       });
   } else if (action === 'memorymap-photo-file') {
