@@ -35,6 +35,7 @@ button, input, textarea { font-family: inherit; }
 /* Typography helpers */
 .font-serif { font-family: 'Playfair Display', Georgia, serif; }
 .font-mono  { font-family: 'JetBrains Mono', monospace; }
+.font-stencil { font-family: 'Black Ops One', 'Inter', sans-serif; }
 
 /* Gold glow text */
 .gold-glow { text-shadow: 0 0 24px rgba(var(--accent-rgb), 0.55); }
@@ -162,6 +163,19 @@ button, input, textarea { font-family: inherit; }
 /* Persistent month-theme animated background (see index.html comment) */
 #theme-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: #000814; }
 #theme-bg canvas { display: block; }
+
+/* Themed cursor trail — a small emoji spawned at the pointer on mousemove,
+   see applyCursorForView()/spawnCursorTrail() in app.js. */
+.cursor-trail-particle {
+  position: fixed; z-index: 9999; pointer-events: none;
+  font-size: 16px; transform: translate(-50%, -50%);
+  animation: cursorTrailFade 0.9s ease-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes cursorTrailFade {
+  0% { opacity: 0.9; transform: translate(-50%, -50%) scale(1) translateY(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) translateY(-18px); }
+}
 
 /* Keyframes */
 @keyframes starFall { to { transform: translate3d(-30em,0,0); } }

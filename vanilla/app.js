@@ -5,7 +5,7 @@
 //   Share URL   → yoursite.com/?gift=main
 //   Panther opens URL → app reads "main" from Firestore → shows letters
 // ═══════════════════════════════════════════════════════════════════════
-import { loadData, saveData, signInOwner, uploadMusicFile } from './db.js';
+import { loadData, saveData, signInOwner, uploadMusicFile, uploadMixtapeSong, uploadMemoryFile } from './db.js';
 import { mountMoonIcon, unmountMoonIcon, mountMoonSky, unmountMoonSky } from './moon3d.js';
 import { hasScene, mountMonthScene, unmountMonthScene } from './monthThemes.js';
 
@@ -19,8 +19,10 @@ const DEFAULT_DATA = {
   distanceKm: 730, distanceMiles: 454,
   isPublished: false,
   moonMessages: [],
-  hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false },
+  hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false, mixtape: false, memorymap: false, collection: false },
   bouquet: { flowers: [], wrapping: 'gold', note: '', background: { type: 'preset', value: 'night' } },
+  mixtape: { color: 'sage', label: 'Songs for you', songs: [], note: '' },
+  memoryMap: { pins: [] },
   theme: 'classic',
   moonPhaseDay: 15, // 1-30, moon shape only (1=new moon, 15=full moon)
   skyEffectId: 1,   // 1-30, star/sky-effect mood — independent of the moon shape
@@ -72,16 +74,21 @@ const FLOWER_OPTIONS = [
   { id: 'lotus', label: 'Lotus', petals: 8, petalColor: '#f8c8dc', centerColor: '#e85d75' },
   { id: 'rosette', label: 'Rosette', petals: 12, petalColor: '#e8a87c', centerColor: '#c9784f' },
   { id: 'mixed', label: 'Mixed', petals: 6, petalColor: '#a8d5ba', centerColor: '#e85d75' },
+  { id: 'lily', label: 'Lily', petals: 6, petalColor: '#f5a428', centerColor: '#c9781f' },
+  { id: 'amaryllis', label: 'Amaryllis', petals: 6, petalColor: '#c81e3a', centerColor: '#fdf6ea' },
 ];
 
 // Ready-made starting points — apply one, then tweak flowers/wrapping freely.
 const BOUQUET_TEMPLATES = [
-  { id: 'classic-roses', label: 'Classic Roses', flowers: ['rose', 'rose', 'rose', 'rose', 'rose', 'rose'], wrapping: 'rose' },
-  { id: 'sunny-mix', label: 'Sunny Mix', flowers: ['sunflower', 'daisy', 'sunflower', 'daisy', 'sunflower', 'daisy'], wrapping: 'gold' },
-  { id: 'pastel-dream', label: 'Pastel Dream', flowers: ['blossom', 'hyacinth', 'lotus', 'blossom', 'hyacinth', 'lotus'], wrapping: 'lavender' },
-  { id: 'wild-garden', label: 'Wild Garden', flowers: ['rose', 'tulip', 'sunflower', 'daisy', 'hibiscus', 'blossom', 'hyacinth', 'lotus'], wrapping: 'sage' },
+  { id: 'warm-lily-mix', label: 'Warm Lily Mix', flowers: ['lily', 'lily', 'lily', 'lily', 'lily'], wrapping: 'kraft' },
+  { id: 'pink-variety', label: 'Pink Variety', flowers: ['rosette', 'lotus', 'daisy', 'rosette', 'lotus', 'daisy'], wrapping: 'sage' },
+  { id: 'pink-rose-acacia', label: 'Pink Rose + Acacia', flowers: ['rose', 'rose', 'rose', 'rose', 'rose', 'blossom'], wrapping: 'sage' },
+  { id: 'amaryllis-trio', label: 'Amaryllis Trio', flowers: ['amaryllis', 'amaryllis', 'amaryllis', 'blossom', 'blossom'], wrapping: 'kraft' },
+  { id: 'apple-blossom', label: 'Apple Blossom', flowers: ['blossom', 'blossom', 'blossom', 'blossom', 'blossom', 'blossom'], wrapping: 'sage' },
+  { id: 'wild-garden', label: 'Wild Garden', flowers: ['rose', 'tulip', 'sunflower', 'daisy', 'hibiscus', 'lotus'], wrapping: 'kraft' },
 ];
 
+// Ribbon color, tied around a fixed kraft-paper cone — see wrappingSVG().
 const WRAPPING_OPTIONS = [
   { id: 'gold', label: 'Gold', color: '#e9c349' },
   { id: 'rose', label: 'Rose', color: '#fda4af' },
@@ -121,6 +128,95 @@ const THEMES = [
   { id: 'december', label: 'December — Snowfall', month: 12, accent: '#cfe8ff', accentRgb: '207,232,255', pageBg: 'linear-gradient(180deg,#000005 0%,#000814 40%,#000d20 100%)', icon: '⛄', particle: '❄️', motion: 'fall' },
 ];
 
+// ── Themed cursor + trail ────────────────────────────────────────────────
+// Each month theme swaps the mouse pointer for a small matching shape (a
+// heart for February, a bat for November...) and leaves a brief trail of a
+// matching emoji as the mouse moves. Shapes match the actual animated month
+// scene in monthThemes.js (e.g. "wave" for June's tide-sea scene), not the
+// older THEMES labels above, which predate that work and drifted out of sync.
+const CURSOR_SHAPE_BUILDERS = {
+  snowflake: (c) => {
+    let s = '';
+    for (let i = 0; i < 6; i++) {
+      s += `<g transform="rotate(${i * 60} 16 16)"><line x1="16" y1="16" x2="16" y2="3" stroke="${c}" stroke-width="2.4" stroke-linecap="round"/><line x1="16" y1="8" x2="12" y2="6" stroke="${c}" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="8" x2="20" y2="6" stroke="${c}" stroke-width="2" stroke-linecap="round"/></g>`;
+    }
+    return s + `<circle cx="16" cy="16" r="2.2" fill="${c}"/>`;
+  },
+  heart: (c) => `<path d="M16 27 C6 19 2 13 2 8.5 C2 4 5.5 1 9.5 1 C12.5 1 15 3 16 5.5 C17 3 19.5 1 22.5 1 C26.5 1 30 4 30 8.5 C30 13 26 19 16 27 Z" fill="${c}" stroke="#ffffff" stroke-width="1.4"/>`,
+  blossom: (c) => {
+    let s = '';
+    for (let i = 0; i < 5; i++) {
+      s += `<ellipse cx="16" cy="9" rx="4.4" ry="7" fill="${c}" stroke="#ffffff" stroke-width="1" transform="rotate(${i * 72} 16 16)"/>`;
+    }
+    return s + `<circle cx="16" cy="16" r="3" fill="#ffd94a"/>`;
+  },
+  cloud: (c) => `<path d="M8 22 C4 22 2 19 2 16.5 C2 14 4 12 6.5 12 C7 8.5 10 6 13.5 6 C17 6 19.5 8.5 20.3 11.8 C23.5 12 26 14.5 26 17.5 C26 20.5 23.5 22 21 22 Z" fill="${c}" stroke="#ffffff" stroke-width="1.2"/>`,
+  droplet: (c) => `<path d="M16 3 C22 13 26 18 26 22.5 C26 27.5 21.5 31 16 31 C10.5 31 6 27.5 6 22.5 C6 18 10 13 16 3 Z" fill="${c}" stroke="#ffffff" stroke-width="1.2"/>`,
+  wave: (c) => `<path d="M2 22 C5 15 9 15 12 20 C15 25 19 25 22 20 C24 16.5 27 16 30 17.5 L30 27 L2 27 Z" fill="${c}" stroke="#ffffff" stroke-width="1"/>`,
+  spark: (c) => `<path d="M16 2 L19 13 L30 16 L19 19 L16 30 L13 19 L2 16 L13 13 Z" fill="${c}" stroke="#ffffff" stroke-width="1"/>`,
+  jellyfish: (c) => `<path d="M8 14 C8 7 12 3 16 3 C20 3 24 7 24 14 C24 17 21.5 18.5 16 18.5 C10.5 18.5 8 17 8 14 Z" fill="${c}" stroke="#ffffff" stroke-width="1.2"/>
+    <path d="M11 19 C10 22 12 24 11 27" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M16 19 C15 23 17 25 16 29" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M21 19 C22 22 20 24 21 27" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`,
+  pawprint: (c) => `<ellipse cx="16" cy="21" rx="7" ry="6" fill="${c}"/>
+    <ellipse cx="7" cy="12" rx="3.2" ry="4.4" fill="${c}" transform="rotate(-18 7 12)"/>
+    <ellipse cx="15" cy="8" rx="3.2" ry="4.6" fill="${c}"/>
+    <ellipse cx="24" cy="12" rx="3.2" ry="4.4" fill="${c}" transform="rotate(18 24 12)"/>`,
+  leaf: (c) => `<path d="M16 3 C26 8 27 18 22 25 C20 28 16 30 16 30 C16 30 12 28 10 25 C5 18 6 8 16 3 Z" fill="${c}" stroke="#ffffff" stroke-width="1.2"/>
+    <line x1="16" y1="7" x2="16" y2="29" stroke="#ffffff" stroke-width="1" opacity="0.6"/>`,
+  bat: (c) => `<path d="M16 12 C13 6 6 4 2 8 C6 10 8 13 9 16 C4 15 1 18 2 22 C6 20 9 20 11 22 C13 24 15 24 16 20 C17 24 19 24 21 22 C23 20 26 20 30 22 C31 18 28 15 23 16 C24 13 26 10 30 8 C26 4 19 6 16 12 Z" fill="${c}" stroke="#ffffff" stroke-width="1"/>
+    <circle cx="14" cy="14" r="1" fill="#ffffff"/><circle cx="18" cy="14" r="1" fill="#ffffff"/>`,
+  ornament: (c) => `<circle cx="16" cy="19" r="10" fill="${c}" stroke="#ffffff" stroke-width="1.4"/>
+    <rect x="13" y="4" width="6" height="6" rx="1.5" fill="#c9a13a"/>
+    <path d="M16 4 L16 1" stroke="#c9a13a" stroke-width="2" stroke-linecap="round"/>
+    <ellipse cx="12" cy="15" rx="3" ry="4" fill="#ffffff" opacity="0.35"/>`,
+};
+const CURSOR_THEMES = {
+  january:   { shape: 'snowflake', color: '#bfe3ff', trailEmoji: '❄️' },
+  february:  { shape: 'heart',     color: '#ff5c86', trailEmoji: '💗' },
+  march:     { shape: 'blossom',   color: '#ff9ecb', trailEmoji: '🌸' },
+  april:     { shape: 'cloud',     color: '#bfe0fb', trailEmoji: '💧' },
+  may:       { shape: 'droplet',   color: '#5ec8f2', trailEmoji: '🌧️' },
+  june:      { shape: 'wave',      color: '#3fc6d6', trailEmoji: '🌊' },
+  july:      { shape: 'spark',     color: '#fde68a', trailEmoji: '✨' },
+  august:    { shape: 'jellyfish', color: '#c9b6f7', trailEmoji: '🪼' },
+  september: { shape: 'pawprint',  color: '#f6a25c', trailEmoji: '🦖' },
+  october:   { shape: 'leaf',      color: '#f0894a', trailEmoji: '🍁' },
+  november:  { shape: 'bat',       color: '#a888d9', trailEmoji: '🦇' },
+  december:  { shape: 'ornament',  color: '#e0524f', trailEmoji: '✨' },
+};
+function cursorDataUri(shape, color) {
+  const svg = CURSOR_SHAPE_BUILDERS[shape](color);
+  const full = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">${svg}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(full)}`;
+}
+let lastCursorKey = null;
+let activeCursorTheme = null;
+function applyCursorForView(view, themeId) {
+  const cfg = (view === 'moon' || view === 'mixtape' || view === 'memorymap') ? null : CURSOR_THEMES[themeId] || null;
+  const key = cfg ? `${cfg.shape}:${cfg.color}` : 'none';
+  if (key !== lastCursorKey) {
+    lastCursorKey = key;
+    document.body.style.cursor = cfg ? `url("${cursorDataUri(cfg.shape, cfg.color)}") 16 16, auto` : '';
+  }
+  activeCursorTheme = cfg;
+}
+let lastCursorTrailAt = 0;
+function spawnCursorTrail(x, y) {
+  if (!activeCursorTheme) return;
+  const now = performance.now();
+  if (now - lastCursorTrailAt < 70) return;
+  lastCursorTrailAt = now;
+  const el = document.createElement('span');
+  el.className = 'cursor-trail-particle';
+  el.textContent = activeCursorTheme.trailEmoji;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+document.addEventListener('mousemove', (e) => spawnCursorTrail(e.clientX, e.clientY));
+
 // Hand-tuned offsets (relative to the top of the wrapping) for up to 12 flowers,
 // growing outward in a fan so the cluster still looks intentional at any count.
 const BOUQUET_POSITIONS = [
@@ -156,6 +252,9 @@ const OWNER_TABS = [
   { id: 'letters', icon: '✉️', label: 'Letters' },
   { id: 'gallery', icon: '🖼️', label: 'Gallery' },
   { id: 'bouquet', icon: '💐', label: 'Bouquet' },
+  { id: 'mixtape', icon: '📻', label: 'Mixtape' },
+  { id: 'memorymap', icon: '🗺️', label: 'Map' },
+  { id: 'collection', icon: '📚', label: 'Collection' },
   { id: 'moon', icon: '🌙', label: 'Moon' },
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ];
@@ -197,6 +296,8 @@ function normalizeData(d) {
     letters: d.letters || [], gallery: d.gallery || [], moonMessages: d.moonMessages || [],
     hiddenTabs: { ...DEFAULT_DATA.hiddenTabs, ...(d.hiddenTabs || {}) },
     bouquet: { ...DEFAULT_DATA.bouquet, ...(d.bouquet || {}), flowers: (d.bouquet && d.bouquet.flowers) || [] },
+    mixtape: { ...DEFAULT_DATA.mixtape, ...(d.mixtape || {}), songs: (d.mixtape && d.mixtape.songs) || [] },
+    memoryMap: { ...DEFAULT_DATA.memoryMap, ...(d.memoryMap || {}), pins: (d.memoryMap && d.memoryMap.pins) || [] },
   };
 }
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -250,7 +351,7 @@ function requestLiveLocation() {
 }
 
 function firstVisibleRecipientTab(data) {
-  const order = ['letters', 'gallery', 'bouquet', 'moon'];
+  const order = ['letters', 'gallery', 'bouquet', 'mixtape', 'memorymap', 'collection', 'moon'];
   return order.find(t => !data.hiddenTabs[t]) || 'letters';
 }
 function shareUrl() {
@@ -344,6 +445,12 @@ const state = {
   lightbox: null, // { idx }
   moonEditor: { dinoDraft: '', moonDraft: '', editingId: null, editingText: '' },
   bouquetForm: { note: '', bgUrl: '' },
+  mixtapeStep: 1,
+  mixtapeForm: { label: '', note: '', songTitle: '', songArtist: '' },
+  mixtapeUploading: false,
+  memoryMapDraft: null, // { x, y, title, date, note, photoUrl, voiceUrl }
+  memoryMapViewingId: null,
+  memoryMapUploading: false,
 };
 
 const root = document.getElementById('root');
@@ -355,11 +462,17 @@ function computeView() {
   if (state.isRecipient && state.recipient.data) {
     if (state.recipient.tab === 'moon') return 'moon';
     if (state.recipient.tab === 'bouquet') return 'bouquet';
+    if (state.recipient.tab === 'mixtape') return 'mixtape';
+    if (state.recipient.tab === 'memorymap') return 'memorymap';
+    if (state.recipient.tab === 'collection') return 'collection';
     return 'recipient';
   }
   if (!state.pinOk) return 'pin';
   if (state.owner.tab === 'moon') return 'moon';
   if (state.owner.tab === 'bouquet') return 'bouquet';
+  if (state.owner.tab === 'mixtape') return 'mixtape';
+  if (state.owner.tab === 'memorymap') return 'memorymap';
+  if (state.owner.tab === 'collection') return 'collection';
   if (state.editingLetter !== undefined) return 'editor';
   return 'owner';
 }
@@ -374,6 +487,9 @@ function render() {
     case 'pin': html = pinScreenHTML(); break;
     case 'moon': html = (state.isRecipient && state.recipient.data) ? moonScriptViewHTML() : moonScriptEditorHTML(); break;
     case 'bouquet': html = (state.isRecipient && state.recipient.data) ? bouquetViewHTML() : bouquetBuilderHTML(); break;
+    case 'mixtape': html = (state.isRecipient && state.recipient.data) ? mixtapeViewHTML() : mixtapeBuilderHTML(); break;
+    case 'memorymap': html = (state.isRecipient && state.recipient.data) ? memoryMapViewHTML() : memoryMapBuilderHTML(); break;
+    case 'collection': html = collectionHTML(); break;
     case 'editor': html = letterEditorHTML(); break;
     case 'owner': html = ownerStudioHTML(); break;
   }
@@ -404,13 +520,64 @@ function afterRender(view) {
   // its own independent sky system). Safe to call every render: it no-ops
   // unless the active theme actually changed.
   const themeId = (state.isRecipient && state.recipient.data) ? state.recipient.data.theme : state.owner.data.theme;
-  if (view !== 'moon' && hasScene(themeId)) {
+  if (view !== 'moon' && view !== 'mixtape' && view !== 'memorymap' && hasScene(themeId)) {
     mountMonthScene(themeId, document.getElementById('theme-bg'));
   } else {
     unmountMonthScene();
   }
+  applyCursorForView(view, themeId);
   const musicEl = root.querySelector('#letter-music-player');
   if (musicEl) musicEl.play().catch(() => {}); // autoplay can be blocked; controls stay visible either way
+}
+
+// A cat courier in an army uniform delivering the gift, replacing the old
+// 🦖💌🐾 emoji on the recipient's loading screen.
+function catSoldierSVG() {
+  return `<svg width="150" height="164" viewBox="0 0 220 240" style="overflow:visible;display:block;">
+    <ellipse cx="110" cy="228" rx="70" ry="10" fill="rgba(0,0,0,0.25)"/>
+    <path d="M170 190 C205 180 210 140 190 115" stroke="#d9b98a" stroke-width="14" fill="none" stroke-linecap="round"/>
+    <path d="M170 190 C205 180 210 140 190 115" stroke="#c9a876" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.4" stroke-dasharray="1 16"/>
+    <rect x="78" y="190" width="20" height="30" rx="6" fill="#3f4a34"/>
+    <rect x="122" y="190" width="20" height="30" rx="6" fill="#3f4a34"/>
+    <ellipse cx="88" cy="222" rx="14" ry="8" fill="#2b3324"/>
+    <ellipse cx="132" cy="222" rx="14" ry="8" fill="#2b3324"/>
+    <path d="M60 130 C60 100 82 88 110 88 C138 88 160 100 160 130 L156 196 C156 205 145 210 110 210 C75 210 64 205 64 196 Z" fill="#5b6b47"/>
+    <path d="M60 130 C60 100 82 88 110 88 C138 88 160 100 160 130 L156 196 C156 205 145 210 110 210 C75 210 64 205 64 196 Z" fill="none" stroke="#3f4a34" stroke-width="2"/>
+    <path d="M110 92 L110 208" stroke="#3f4a34" stroke-width="1.5" opacity="0.5"/>
+    <circle cx="110" cy="118" r="2.6" fill="#e8dcb8"/>
+    <circle cx="110" cy="132" r="2.6" fill="#e8dcb8"/>
+    <circle cx="110" cy="146" r="2.6" fill="#e8dcb8"/>
+    <rect x="70" y="112" width="20" height="16" rx="2" fill="#4d5a3d" stroke="#3f4a34" stroke-width="1.5"/>
+    <path d="M56 108 C48 118 46 140 54 156" stroke="#4d5a3d" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <path d="M164 108 C172 118 174 140 166 156" stroke="#4d5a3d" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <path d="M64 104 L84 96 L86 104 Z" fill="#e8dcb8"/>
+    <path d="M156 104 L136 96 L134 104 Z" fill="#e8dcb8"/>
+    <path d="M72 58 L60 24 L92 46 Z" fill="#e8d4b0" stroke="#c9a876" stroke-width="1.5"/>
+    <path d="M148 58 L160 24 L128 46 Z" fill="#e8d4b0" stroke="#c9a876" stroke-width="1.5"/>
+    <path d="M74 52 L67 32 L86 46 Z" fill="#f3c7c7"/>
+    <path d="M146 52 L153 32 L134 46 Z" fill="#f3c7c7"/>
+    <circle cx="110" cy="72" r="44" fill="#e8d4b0" stroke="#c9a876" stroke-width="1.5"/>
+    <path d="M64 56 C64 30 84 16 110 16 C136 16 156 30 156 56 C140 44 80 44 64 56 Z" fill="#4d5a3d" stroke="#3f4a34" stroke-width="1.5"/>
+    <path d="M64 56 C80 46 140 46 156 56 C156 62 150 65 110 65 C70 65 64 62 64 56 Z" fill="#3f4a34"/>
+    <circle cx="110" cy="30" r="4" fill="#e8dcb8" stroke="#3f4a34" stroke-width="1"/>
+    <circle cx="92" cy="76" r="4.4" fill="#3a2c1c"/>
+    <circle cx="128" cy="76" r="4.4" fill="#3a2c1c"/>
+    <circle cx="93.5" cy="74.5" r="1.3" fill="#fff"/>
+    <circle cx="129.5" cy="74.5" r="1.3" fill="#fff"/>
+    <path d="M106 86 L114 86 L110 91 Z" fill="#e8a0a0"/>
+    <path d="M110 91 Q104 93 101 89" stroke="#8a6a4a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M110 91 Q116 93 119 89" stroke="#8a6a4a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M78 84 L52 80 M78 90 L50 92 M142 84 L168 80 M142 90 L170 92" stroke="#c9a876" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M100 128 L96 142 L104 148 L112 142 L108 128" fill="#c9c2a8" stroke="#9a9378" stroke-width="1"/>
+    <path d="M96 108 Q110 100 124 108" stroke="#9a9378" stroke-width="2" fill="none"/>
+    <g transform="translate(64 150)">
+      <rect x="0" y="0" width="92" height="58" rx="4" fill="#c9a876" stroke="#8a6a45" stroke-width="2"/>
+      <rect x="0" y="0" width="92" height="16" fill="#b8996b" opacity="0.6"/>
+      <path d="M46 0 L46 58 M0 29 L92 29" stroke="#8a6a45" stroke-width="2.5"/>
+      <rect x="20" y="17" width="52" height="24" rx="2" fill="#f3e8d0" stroke="#8a6a45" stroke-width="1.2" transform="rotate(-4 46 29)"/>
+      <text x="46" y="33" text-anchor="middle" font-family="Georgia,serif" font-size="10" font-weight="700" fill="#5b4a2f" transform="rotate(-4 46 29)">PANTHER</text>
+    </g>
+  </svg>`;
 }
 
 // ── PIN screen ───────────────────────────────────────────────────────────
@@ -421,7 +588,6 @@ function pinScreenHTML() {
     ${skyBackdropHTML(state.owner.data.theme)}
     <div style="position:relative;z-index:10;width:100%;max-width:380px;padding:0 24px;display:flex;flex-direction:column;align-items:center;gap:32px;">
       <div style="text-align:center;animation:slideUp 0.5s ease-out forwards;">
-        <div style="font-size:72px;margin-bottom:12px;display:inline-block;animation:float 6s ease-in-out infinite;">🦖🐾</div>
         <h1 class="font-serif gold-glow" style="font-size:42px;font-weight:700;color:#ffddb0;margin-bottom:6px;">For Panther</h1>
         <p class="font-serif" style="color:#b2c8ed;font-size:14px;font-style:italic;">From your Dino, with love ✈️</p>
         <div class="glass-gold font-mono" style="margin-top:14px;display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:999px;font-size:12px;color:#b2c8ed;">
@@ -433,8 +599,7 @@ function pinScreenHTML() {
 
       <div class="glass-gold" style="width:100%;border-radius:28px;padding:36px;box-shadow:0 24px 60px rgba(0,0,0,0.5);animation:slideUp 0.5s 0.1s ease-out forwards;opacity:0;">
         <div style="text-align:center;margin-bottom:28px;">
-          <div style="font-size:32px;margin-bottom:8px;">🔐</div>
-          <p class="font-mono" style="font-size:11px;color:var(--accent);letter-spacing:0.2em;text-transform:uppercase;">Enter Access Code</p>
+          <p class="font-stencil" style="font-size:16px;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;">Enter Access Code</p>
         </div>
 
         <div class="${shaking ? 'do-shake' : ''}" style="display:flex;justify-content:center;gap:14px;margin-bottom:16px;">
@@ -464,10 +629,10 @@ function recipientLoadingHTML() {
   return `
   <div style="${PAGE_STYLE}display:flex;align-items:center;justify-content:center;">
     ${starsHTML()}
-    <div class="glass-gold" style="position:relative;z-index:10;border-radius:28px;padding:48px 40px;max-width:360px;width:100%;margin:0 16px;text-align:center;">
-      <div style="font-size:56px;margin-bottom:16px;animation:float 3s ease-in-out infinite;">🦖💌🐾</div>
-      <h2 class="font-serif" style="font-size:24px;font-weight:700;color:#ffddb0;margin-bottom:10px;">Opening your letter...</h2>
-      <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:24px;">Loading across the miles from Sialkot to Ormara</p>
+    <div class="glass-gold" style="position:relative;z-index:10;border-radius:28px;padding:40px 32px;max-width:380px;width:100%;margin:0 16px;text-align:center;">
+      <div style="display:flex;justify-content:center;margin-bottom:8px;animation:float 3.5s ease-in-out infinite;">${catSoldierSVG()}</div>
+      <p class="font-stencil" style="font-size:22px;color:var(--accent);letter-spacing:0.06em;margin-bottom:10px;text-shadow:0 2px 8px rgba(0,0,0,0.5);">YOU'VE GOT A PARCEL</p>
+      <p class="font-mono" style="font-size:13px;color:#b2c8ed;margin-bottom:24px;">Special delivery, incoming from Sialkot to Ormara</p>
       <div style="display:flex;justify-content:center;gap:8px;">
         ${[0, 1, 2].map(i => `<div style="width:10px;height:10px;border-radius:50%;background:var(--accent);animation:bounceDot 1s ease-in-out ${i * 0.15}s infinite;"></div>`).join('')}
       </div>
@@ -499,6 +664,9 @@ function recipientViewHTML() {
     { id: 'letters', label: `Letters (${d.letters.filter(l => l.isPublished).length})`, emoji: '💌' },
     { id: 'gallery', label: `Gallery (${d.gallery.length})`, emoji: '📷' },
     { id: 'bouquet', label: 'Bouquet', emoji: '💐' },
+    { id: 'mixtape', label: 'Mixtape', emoji: '📻' },
+    { id: 'memorymap', label: 'Memory Map', emoji: '🗺️' },
+    { id: 'collection', label: 'Collection', emoji: '📚' },
     { id: 'moon', label: 'Talk to Moon', emoji: '🌙' },
   ].filter(t => !d.hiddenTabs[t.id]);
   return `
@@ -1045,79 +1213,241 @@ function shadeColor(hex, percent) {
   return `#${(0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1)}`;
 }
 
-// A small parametric SVG flower — petals as rotated ellipses around a center
-// circle. Varying petal count/colors per FLOWER_OPTIONS entry gives each type
-// a distinct silhouette without needing hand-drawn art assets.
+// ── Painterly flower illustrations ──────────────────────────────────────
+// Each flower is built from teardrop petal paths (rounded or pointed)
+// arranged in one or more rings around a center, radially shaded with a
+// per-instance gradient, so every type gets a distinct, soft, layered
+// silhouette instead of a flat ring of ellipses.
+let svgUid = 0;
+
+function roundPetalPath(cx, cy, len, width) {
+  const tipY = (cy - len).toFixed(1);
+  const ctrlY = (cy - len * 0.55).toFixed(1);
+  const baseY = (cy - len * 0.15).toFixed(1);
+  return `M ${cx} ${cy} C ${(cx - width).toFixed(1)} ${baseY}, ${(cx - width * 0.9).toFixed(1)} ${ctrlY}, ${cx} ${tipY} C ${(cx + width * 0.9).toFixed(1)} ${ctrlY}, ${(cx + width).toFixed(1)} ${baseY}, ${cx} ${cy} Z`;
+}
+function pointedPetalPath(cx, cy, len, width) {
+  const tipY = (cy - len).toFixed(1);
+  const ctrlY = (cy - len * 0.6).toFixed(1);
+  const baseY = (cy - len * 0.1).toFixed(1);
+  return `M ${cx} ${cy} C ${(cx - width).toFixed(1)} ${baseY}, ${(cx - width * 0.5).toFixed(1)} ${ctrlY}, ${cx} ${tipY} C ${(cx + width * 0.5).toFixed(1)} ${ctrlY}, ${(cx + width).toFixed(1)} ${baseY}, ${cx} ${cy} Z`;
+}
+function petalRing(cx, cy, count, len, width, startAngle, fill, opacity, pointed) {
+  let out = '';
+  for (let i = 0; i < count; i++) {
+    const angle = startAngle + (360 / count) * i;
+    const d = pointed ? pointedPetalPath(cx, cy, len, width) : roundPetalPath(cx, cy, len, width);
+    out += `<path d="${d}" fill="${fill}" opacity="${opacity}" transform="rotate(${angle} ${cx} ${cy})" />`;
+  }
+  return out;
+}
+
 function flowerSVG(f, size) {
+  svgUid += 1;
   const cx = size / 2, cy = size / 2;
-  const petalRx = size * 0.2, petalRy = size * 0.32;
-  let petals = '';
-  for (let i = 0; i < f.petals; i++) {
-    const angle = (360 / f.petals) * i;
-    petals += `<ellipse cx="${cx}" cy="${cy - petalRy * 0.5}" rx="${petalRx}" ry="${petalRy}" fill="${f.petalColor}" opacity="0.94" transform="rotate(${angle} ${cx} ${cy})" />`;
+  const gradId = `petGrad${svgUid}`;
+  const light = shadeColor(f.petalColor, 35);
+  const dark = shadeColor(f.petalColor, -35);
+  const grad = `url(#${gradId})`;
+  let body = '';
+  switch (f.id) {
+    case 'rose':
+      body += petalRing(cx, cy, 6, size * 0.4, size * 0.19, 8, grad, 0.95, false);
+      body += petalRing(cx, cy, 5, size * 0.28, size * 0.15, 30, shadeColor(f.petalColor, 15), 0.97, false);
+      body += petalRing(cx, cy, 4, size * 0.16, size * 0.1, 10, shadeColor(f.petalColor, 30), 1, false);
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.06}" fill="${shadeColor(f.centerColor, 20)}" />`;
+      break;
+    case 'tulip':
+      [-55, -25, 0, 25, 55].forEach((a, i) => {
+        const fill = i === 2 ? grad : shadeColor(f.petalColor, i % 2 ? 10 : -10);
+        body += `<path d="${roundPetalPath(cx, cy, size * 0.4, size * 0.16)}" fill="${fill}" opacity="0.95" transform="rotate(${a} ${cx} ${cy})" />`;
+      });
+      break;
+    case 'lily':
+    case 'amaryllis':
+      body += petalRing(cx, cy, f.petals, size * 0.38, size * 0.17, 0, grad, 0.96, true);
+      for (let i = 0; i < 5; i++) {
+        const a = Math.random() * 360, r = size * 0.08 + Math.random() * size * 0.12;
+        const sx = (cx + Math.cos(a * Math.PI / 180) * r).toFixed(1);
+        const sy = (cy + Math.sin(a * Math.PI / 180) * r).toFixed(1);
+        body += `<circle cx="${sx}" cy="${sy}" r="${(size * 0.012).toFixed(1)}" fill="${shadeColor(f.centerColor, -40)}" opacity="0.8" />`;
+      }
+      for (let i = 0; i < 6; i++) {
+        const rad = (60 * i) * Math.PI / 180;
+        const ex = (cx + Math.cos(rad) * size * 0.16).toFixed(1);
+        const ey = (cy + Math.sin(rad) * size * 0.16).toFixed(1);
+        body += `<line x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}" stroke="${f.centerColor}" stroke-width="1" opacity="0.7" /><circle cx="${ex}" cy="${ey}" r="${(size * 0.02).toFixed(1)}" fill="${f.centerColor}" />`;
+      }
+      break;
+    case 'sunflower':
+      body += petalRing(cx, cy, f.petals, size * 0.42, size * 0.11, 0, grad, 0.96, true);
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.22}" fill="${f.centerColor}" />`;
+      for (let ring = 1; ring <= 3; ring++) {
+        const rr = size * 0.22 * (ring / 3.4);
+        const cnt = ring * 5;
+        for (let i = 0; i < cnt; i++) {
+          const rad = ((360 / cnt) * i + ring * 12) * Math.PI / 180;
+          const dx = (cx + Math.cos(rad) * rr).toFixed(1);
+          const dy = (cy + Math.sin(rad) * rr).toFixed(1);
+          body += `<circle cx="${dx}" cy="${dy}" r="${(size * 0.012).toFixed(1)}" fill="${shadeColor(f.centerColor, -15)}" opacity="0.7" />`;
+        }
+      }
+      break;
+    case 'daisy':
+      body += petalRing(cx, cy, f.petals, size * 0.38, size * 0.08, 0, grad, 0.95, true);
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.15}" fill="${f.centerColor}" />`;
+      break;
+    case 'hibiscus':
+      body += petalRing(cx, cy, f.petals, size * 0.42, size * 0.17, 10, grad, 0.95, false);
+      for (let i = 0; i < 3; i++) {
+        const a = -22 + i * 22;
+        const rad = a * Math.PI / 180;
+        const ex = (cx + Math.sin(rad) * size * 0.05).toFixed(1);
+        const ey = (cy - size * 0.32).toFixed(1);
+        const c1x = (cx + Math.sin(rad) * size * 0.1).toFixed(1);
+        const c1y = (cy - size * 0.18).toFixed(1);
+        body += `<path d="M ${cx} ${cy} Q ${c1x} ${c1y} ${ex} ${ey}" stroke="${f.centerColor}" stroke-width="1.4" fill="none" opacity="0.85" /><circle cx="${ex}" cy="${ey}" r="${(size * 0.025).toFixed(1)}" fill="${shadeColor(f.centerColor, -20)}" />`;
+      }
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.08}" fill="${f.centerColor}" />`;
+      break;
+    case 'blossom':
+      body += petalRing(cx, cy, f.petals, size * 0.3, size * 0.14, 0, grad, 0.96, false);
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.07}" fill="${f.centerColor}" />`;
+      break;
+    case 'hyacinth':
+      for (let i = 0; i < 6; i++) {
+        const t = i / 5;
+        const fy = cy - size * 0.36 + t * size * 0.62;
+        const fx = cx + Math.sin(t * 8) * size * 0.08;
+        const fsize = size * (0.34 - t * 0.08);
+        body += petalRing(fx, fy, 5, fsize * 0.22, fsize * 0.09, i * 30, grad, 0.9, false);
+        body += `<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="${(fsize * 0.05).toFixed(1)}" fill="${f.centerColor}" />`;
+      }
+      break;
+    case 'lotus':
+      body += petalRing(cx, cy, f.petals, size * 0.4, size * 0.2, 0, grad, 0.92, false);
+      body += petalRing(cx, cy, f.petals - 2, size * 0.24, size * 0.15, 22, shadeColor(f.petalColor, 18), 0.97, false);
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.08}" fill="${f.centerColor}" />`;
+      break;
+    case 'rosette':
+      body += petalRing(cx, cy, f.petals, size * 0.4, size * 0.09, 0, grad, 0.9, false);
+      body += petalRing(cx, cy, f.petals - 3, size * 0.28, size * 0.08, 12, shadeColor(f.petalColor, 12), 0.94, false);
+      body += petalRing(cx, cy, Math.max(4, f.petals - 7), size * 0.16, size * 0.07, 6, shadeColor(f.petalColor, 25), 1, false);
+      break;
+    default:
+      for (let i = 0; i < f.petals; i++) {
+        const angle = (360 / f.petals) * i;
+        const fill = i % 2 === 0 ? grad : f.centerColor;
+        body += `<path d="${roundPetalPath(cx, cy, size * 0.34, size * 0.15)}" fill="${fill}" opacity="0.94" transform="rotate(${angle} ${cx} ${cy})" />`;
+      }
+      body += `<circle cx="${cx}" cy="${cy}" r="${size * 0.1}" fill="${f.centerColor}" />`;
   }
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow:visible;display:block;">
-    ${petals}
-    <circle cx="${cx}" cy="${cy}" r="${size * 0.14}" fill="${f.centerColor}" />
+    <defs><radialGradient id="${gradId}" cx="50%" cy="72%" r="75%">
+      <stop offset="0%" stop-color="${light}" /><stop offset="60%" stop-color="${f.petalColor}" /><stop offset="100%" stop-color="${dark}" />
+    </radialGradient></defs>
+    ${body}
   </svg>`;
 }
 
-// A proper florist paper wrap: bell-curved cone silhouette (not a straight
-// triangle), a second sheet peeking out behind, a folded-over top flap, fold
-// creases, and a real ribbon bow with tails — not a flat clip-path shape.
+// Small green leaf, used behind the flower cluster for filler.
+function leafSVG(size, color) {
+  const w = size, h = size * 1.8;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="overflow:visible;display:block;">
+    <path d="M ${w / 2} ${h} C ${w * 0.1} ${h * 0.7} ${w * 0.15} ${h * 0.15} ${w / 2} 0 C ${w * 0.85} ${h * 0.15} ${w * 0.9} ${h * 0.7} ${w / 2} ${h} Z" fill="${color}" opacity="0.92" />
+    <path d="M ${w / 2} ${h} L ${w / 2} 6" stroke="${shadeColor(color, -20)}" stroke-width="1" opacity="0.4" />
+  </svg>`;
+}
+// A tiny sprig of dot-flowers (baby's-breath style filler).
+function fillerSprigSVG(size, color) {
+  let dots = '';
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const a = (360 / n) * i + 18;
+    const x = (size / 2 + Math.cos(a * Math.PI / 180) * size * 0.32).toFixed(1);
+    const y = (size / 2 + Math.sin(a * Math.PI / 180) * size * 0.32).toFixed(1);
+    dots += `<circle cx="${x}" cy="${y}" r="${(size * 0.09).toFixed(1)}" fill="${color}" opacity="0.9" />`;
+  }
+  dots += `<circle cx="${size / 2}" cy="${size / 2}" r="${(size * 0.09).toFixed(1)}" fill="${color}" opacity="0.9" />`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow:visible;display:block;">${dots}</svg>`;
+}
+const GREENERY_POSITIONS = [
+  { x: -70, y: 30, r: -25, size: 30 }, { x: 70, y: 30, r: 25, size: 30 },
+  { x: -50, y: -10, r: -15, size: 26 }, { x: 50, y: -10, r: 15, size: 26 },
+  { x: 0, y: -40, r: 0, size: 24 },
+];
+const FILLER_POSITIONS = [
+  { x: -30, y: 20, size: 22 }, { x: 30, y: 20, size: 22 },
+  { x: -55, y: -20, size: 18 }, { x: 55, y: -20, size: 18 },
+  { x: 0, y: 40, size: 20 },
+];
+
+// No paper wrap at all — real visible stems gathered into a bundle with a
+// sheer ribbon tied around them in a bow, the way editorial bouquet
+// photography actually looks (the previous kraft-paper cone read as a
+// cheap triangle, not a bouquet).
+function leafShape(x, y, rot) {
+  return `<path d="M0 0 C-14 -4 -18 -16 -8 -24 C2 -14 2 -4 0 0 Z" fill="#5a7a4a" opacity="0.88" transform="translate(${x} ${y}) rotate(${rot})" />`;
+}
 function wrappingSVG(wrapC) {
-  const light = shadeColor(wrapC.color, 45);
-  const base = wrapC.color;
-  const dark = shadeColor(wrapC.color, -30);
-  const darker = shadeColor(wrapC.color, -50);
-  const back = shadeColor(wrapC.color, 55);
-  const gradId = `wrapGrad-${wrapC.id}`;
-  const flapId = `wrapFlap-${wrapC.id}`;
+  const stemColor = '#5a7a4a';
+  const stemDark = '#3f5a35';
+  const ribbon = wrapC.color;
+  const ribbonLight = shadeColor(ribbon, 45);
+  const ribbonDark = shadeColor(ribbon, -25);
+  const uid = wrapC.id;
+  const topXs = [55, 72, 89, 106, 123, 140, 157, 174];
+  const gatherX = 110, gatherY = 92;
+  const stems = topXs.map(x => {
+    const midX = (x + gatherX * 3) / 4;
+    return `<path d="M${x} 0 Q${midX} 20 ${gatherX} ${gatherY}" stroke="${stemColor}" stroke-width="2" fill="none" opacity="0.85" />`;
+  }).join('');
+  const leaves = leafShape(70, 55, -30) + leafShape(150, 60, 40) + leafShape(90, 40, -8);
+  const bundle = `<path d="M110 ${gatherY} C104 130 116 160 108 190" stroke="${stemDark}" stroke-width="7" fill="none" stroke-linecap="round" />
+    <path d="M110 ${gatherY} C104 130 116 160 108 190" stroke="${stemColor}" stroke-width="4" fill="none" stroke-linecap="round" />`;
+  const strayStems = `<path d="M96 ${gatherY} C90 135 82 165 76 188" stroke="${stemColor}" stroke-width="2" fill="none" opacity="0.8" />
+    <path d="M124 ${gatherY} C130 135 138 165 144 188" stroke="${stemColor}" stroke-width="2" fill="none" opacity="0.8" />`;
   return `<svg width="100%" height="100%" viewBox="0 0 220 196" style="overflow:visible;display:block;">
     <defs>
-      <linearGradient id="${gradId}" x1="0" y1="0" x2="0.6" y2="1">
-        <stop offset="0%" stop-color="${light}" />
-        <stop offset="45%" stop-color="${base}" />
-        <stop offset="100%" stop-color="${dark}" />
-      </linearGradient>
-      <linearGradient id="${flapId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${dark}" />
-        <stop offset="100%" stop-color="${darker}" />
+      <linearGradient id="ribbonSheen-${uid}" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="${ribbonLight}" stop-opacity="0.9" />
+        <stop offset="50%" stop-color="${ribbon}" stop-opacity="0.55" />
+        <stop offset="100%" stop-color="${ribbonDark}" stop-opacity="0.75" />
       </linearGradient>
     </defs>
 
-    <path d="M14 34 C0 70 20 128 100 190 C185 128 208 70 196 34 C150 50 55 50 14 34 Z"
-      fill="${back}" opacity="0.85" transform="rotate(-7 108 100)" />
+    ${stems}
+    ${leaves}
+    ${bundle}
+    ${strayStems}
 
-    <path d="M22 26 C6 62 28 118 108 186 C193 118 214 62 198 26 C158 40 60 40 22 26 Z"
-      fill="url(#${gradId})" stroke="${dark}" stroke-width="1" />
+    <path d="M74 ${gatherY - 14} Q110 ${gatherY - 24} 146 ${gatherY - 14} L146 ${gatherY + 16} Q110 ${gatherY + 26} 74 ${gatherY + 16} Z"
+      fill="url(#ribbonSheen-${uid})" stroke="${ribbonDark}" stroke-width="1" opacity="0.95" />
 
-    <path d="M108 186 C90 130 70 78 40 32" stroke="${darker}" stroke-width="1" opacity="0.25" fill="none" />
-    <path d="M108 186 L108 34" stroke="${darker}" stroke-width="1" opacity="0.22" fill="none" />
-    <path d="M108 186 C126 130 146 78 178 32" stroke="${darker}" stroke-width="1" opacity="0.25" fill="none" />
+    <path d="M96 ${gatherY + 10} C88 ${gatherY + 50} 78 ${gatherY + 70} 84 ${gatherY + 100}" stroke="${ribbon}" stroke-width="9" fill="none" opacity="0.55" stroke-linecap="round" />
+    <path d="M124 ${gatherY + 10} C132 ${gatherY + 50} 142 ${gatherY + 70} 136 ${gatherY + 100}" stroke="${ribbon}" stroke-width="9" fill="none" opacity="0.55" stroke-linecap="round" />
 
-    <path d="M22 26 C60 40 158 40 198 26 C176 4 150 -6 108 -4 C66 -6 42 4 22 26 Z"
-      fill="url(#${flapId})" opacity="0.96" />
-    <path d="M22 26 C60 40 158 40 198 26" stroke="${darker}" stroke-width="1" opacity="0.3" fill="none" />
-
-    <path d="M14 58 Q110 44 206 58 L202 76 Q110 62 18 76 Z" fill="var(--accent)" />
-    <path d="M14 58 Q110 44 206 58" stroke="#c9a13a" stroke-width="1" opacity="0.5" fill="none" />
-    <path d="M108 92 C88 74 52 74 44 92 C52 108 88 105 108 92 Z" fill="#f0d878" stroke="#c9a13a" stroke-width="1" />
-    <path d="M108 92 C128 74 164 74 172 92 C164 108 128 105 108 92 Z" fill="#f0d878" stroke="#c9a13a" stroke-width="1" />
-    <path d="M108 92 L94 128 L106 120 Z" fill="#e0c060" />
-    <path d="M108 92 L122 128 L110 120 Z" fill="#e0c060" />
-    <circle cx="108" cy="92" r="10" fill="#c9a13a" />
+    <path d="M110 ${gatherY - 6} C92 ${gatherY - 26} 66 ${gatherY - 24} 60 ${gatherY - 4} C64 ${gatherY + 14} 92 ${gatherY + 10} 110 ${gatherY - 2} Z"
+      fill="${ribbon}" opacity="0.7" stroke="${ribbonDark}" stroke-width="1" />
+    <path d="M110 ${gatherY - 6} C128 ${gatherY - 26} 154 ${gatherY - 24} 160 ${gatherY - 4} C156 ${gatherY + 14} 128 ${gatherY + 10} 110 ${gatherY - 2} Z"
+      fill="${ribbon}" opacity="0.7" stroke="${ribbonDark}" stroke-width="1" />
+    <ellipse cx="110" cy="${gatherY - 3}" rx="8" ry="10" fill="${ribbonDark}" opacity="0.85" />
+    <ellipse cx="110" cy="${gatherY - 3}" rx="5" ry="7" fill="${ribbon}" opacity="0.85" />
   </svg>`;
 }
 
 function flowerClusterHTML(bouquet, editable) {
   const wrapC = WRAPPING_OPTIONS.find(w => w.id === bouquet.wrapping) || WRAPPING_OPTIONS[0];
+  const greeneryHTML = bouquet.flowers.length ? GREENERY_POSITIONS.map(g => `
+    <div style="position:absolute;left:calc(50% + ${g.x}px);bottom:${145 + g.y}px;transform:translateX(-50%) rotate(${g.r}deg);z-index:1;">${leafSVG(g.size, '#6a8f5a')}</div>`).join('')
+    + FILLER_POSITIONS.map(fp => `
+    <div style="position:absolute;left:calc(50% + ${fp.x}px);bottom:${145 + fp.y}px;transform:translateX(-50%);z-index:1;">${fillerSprigSVG(fp.size, '#fbfaf5')}</div>`).join('') : '';
   const flowerHTML = bouquet.flowers.map((fid, i) => {
     const f = FLOWER_OPTIONS.find(x => x.id === fid) || FLOWER_OPTIONS[0];
     const pos = BOUQUET_POSITIONS[i] || { x: 0, y: 0, r: 0 };
     const delay = (i % 6) * 0.35;
     return `<div ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
-      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${164 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);${editable ? 'cursor:pointer;' : ''}">
+      style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${160 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);z-index:2;${editable ? 'cursor:pointer;' : ''}">
       <div style="animation:bloomIn 0.45s ease-out, flowerSway ${3.5 + (i % 3) * 0.4}s ease-in-out ${delay}s infinite;">
         ${flowerSVG(f, 52)}
       </div>
@@ -1125,12 +1455,27 @@ function flowerClusterHTML(bouquet, editable) {
   }).join('');
   return `
   <div style="position:relative;width:280px;height:320px;margin:0 auto;">
+    ${greeneryHTML}
     ${flowerHTML}
-    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:190px;height:170px;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.4));">${wrappingSVG(wrapC)}</div>
+    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:190px;height:170px;z-index:3;filter:drop-shadow(0 14px 24px rgba(0,0,0,0.4));">${wrappingSVG(wrapC)}</div>
     ${bouquet.note ? `
-      <div style="position:absolute;right:2px;bottom:78px;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
+      <div style="position:absolute;right:2px;bottom:78px;z-index:4;background:white;padding:8px 12px;border-radius:4px;transform:rotate(6deg);box-shadow:0 6px 16px rgba(0,0,0,0.3);max-width:130px;">
         <p class="font-serif" style="font-size:11px;color:#2c1d11;font-style:italic;">"${esc(bouquet.note)}"</p>
       </div>` : ''}
+  </div>`;
+}
+
+// Small non-interactive preview used by the quick-start template gallery.
+function templatePreviewHTML(t) {
+  const wrapC = WRAPPING_OPTIONS.find(w => w.id === t.wrapping) || WRAPPING_OPTIONS[0];
+  const flowerHTML = t.flowers.map((fid, i) => {
+    const f = FLOWER_OPTIONS.find(x => x.id === fid) || FLOWER_OPTIONS[0];
+    const pos = BOUQUET_POSITIONS[i] || { x: 0, y: 0, r: 0 };
+    return `<div style="position:absolute;left:calc(50% + ${(pos.x * 0.4).toFixed(1)}px);bottom:${(65 - pos.y * 0.4).toFixed(1)}px;transform:translateX(-50%) rotate(${pos.r}deg);z-index:2;">${flowerSVG(f, 22)}</div>`;
+  }).join('');
+  return `<div style="position:relative;width:110px;height:130px;margin:0 auto;">
+    ${flowerHTML}
+    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:78px;height:70px;z-index:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,0.35));">${wrappingSVG(wrapC)}</div>
   </div>`;
 }
 
@@ -1154,15 +1499,27 @@ function bouquetBuilderHTML() {
 
     <div style="position:relative;z-index:10;max-width:600px;margin:0 auto;padding:0 16px 110px;display:flex;flex-direction:column;gap:16px;">
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Quick-start templates</p>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
-          ${BOUQUET_TEMPLATES.map(t => `
-            <button data-action="bouquet-apply-template" data-template="${t.id}" class="font-mono"
-              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;border:none;cursor:pointer;background:rgba(178,200,237,0.06);text-align:left;">
-              <span style="display:flex;">${t.flowers.slice(0, 3).map(fid => flowerSVG(FLOWER_OPTIONS.find(x => x.id === fid), 22)).join('')}</span>
-              <span style="font-size:11px;color:#b2c8ed;">${esc(t.label)}</span>
-            </button>`).join('')}
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:2px;">Choose bouquet</p>
+        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.4);margin-bottom:12px;">Saved bouquets</p>
+        <div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;">
+          ${BOUQUET_TEMPLATES.map(t => {
+            const active = bq.wrapping === t.wrapping && bq.flowers.length === t.flowers.length && bq.flowers.every((fid, i) => fid === t.flowers[i]);
+            return `<button data-action="bouquet-apply-template" data-template="${t.id}" class="font-mono"
+              style="flex:0 0 auto;width:130px;padding:14px 10px 12px;border-radius:20px;cursor:pointer;
+              background:linear-gradient(180deg,#1c3a28,#122619);border:1.5px solid ${active ? 'var(--accent)' : 'rgba(255,255,255,0.08)'};
+              display:flex;flex-direction:column;align-items:center;gap:8px;">
+              ${templatePreviewHTML(t)}
+              <span style="font-size:11px;color:#e8f0e6;text-align:center;line-height:1.3;">${esc(t.label)}</span>
+              <span style="font-size:10px;color:rgba(232,240,230,0.5);">${t.flowers.length} blooms</span>
+            </button>`;
+          }).join('')}
         </div>
+        <p class="font-mono" style="font-size:10px;color:rgba(178,200,237,0.4);margin-top:12px;">
+          ${(() => {
+            const picked = BOUQUET_TEMPLATES.find(t => bq.wrapping === t.wrapping && bq.flowers.length === t.flowers.length && bq.flowers.every((fid, i) => fid === t.flowers[i]));
+            return picked ? `Picked: ${esc(picked.label)} · ${picked.flowers.length} blooms` : 'Pick a bouquet above, or build your own below';
+          })()}
+        </p>
       </div>
 
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
@@ -1175,7 +1532,7 @@ function bouquetBuilderHTML() {
       </div>
 
       <div class="glass-gold" style="border-radius:24px;padding:20px;">
-        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Wrapping</p>
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px;">Ribbon Color</p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           ${WRAPPING_OPTIONS.map(w => `
             <button data-action="bouquet-pick-wrapping" data-wrap="${w.id}" title="${w.label}"
@@ -1222,6 +1579,472 @@ function bouquetViewHTML() {
     </div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 0 60px;position:relative;z-index:10;">
       ${bq.flowers.length ? flowerClusterHTML(bq, false) : `<p class="font-mono" style="color:rgba(255,255,255,0.55);font-size:13px;">No bouquet yet...</p>`}
+    </div>
+  </div>`;
+}
+
+// ── Mixtape builder / view ────────────────────────────────────────────────
+// A deliberately light, warm, cream-and-pastel surface — isolated from the
+// app-wide dark theme the same way Moon Chat is, since it's meant to feel
+// like a little handmade cassette rather than the rest of the gift.
+const MIXTAPE_STEPS = ['Color', 'Decorate', 'Songs', 'Note'];
+const MIXTAPE_COLORS = [
+  { id: 'sage', label: 'Sage garden', shell: '#9caf88', shellDark: '#7d9169', labelBg: '#dce8d5', accent: '#4a6339' },
+  { id: 'golden', label: 'Golden hour', shell: '#d9a441', shellDark: '#b3822c', labelBg: '#f5e2b8', accent: '#7a4f1a' },
+  { id: 'berry', label: 'Berry blush', shell: '#c97b83', shellDark: '#a85961', labelBg: '#f3d3d6', accent: '#7a2e38' },
+  { id: 'powder', label: 'Powder blue', shell: '#a9b7d1', shellDark: '#8493b3', labelBg: '#e4e9f5', accent: '#3d4d73' },
+];
+
+function reelSVG(cx, cy, color) {
+  let teeth = '';
+  for (let i = 0; i < 8; i++) {
+    const a = (360 / 8) * i;
+    teeth += `<rect x="${cx - 2}" y="${cy - 24}" width="4" height="7" rx="1" fill="#f2ead8" transform="rotate(${a} ${cx} ${cy})" />`;
+  }
+  return `<circle cx="${cx}" cy="${cy}" r="20" fill="#f2ead8" stroke="#c9bfa0" stroke-width="1" />
+    ${teeth}
+    <circle cx="${cx}" cy="${cy}" r="7" fill="${color}" opacity="0.7" />
+    <circle cx="${cx}" cy="${cy}" r="2.5" fill="#f2ead8" />`;
+}
+
+// An illustrated cassette tape — floral label window, two spoked reels with
+// a tape strip between them, corner screws, and a lower deck with a couple
+// of accent buttons. Recolored per MIXTAPE_COLORS entry.
+function cassetteSVG(colorDef, labelText) {
+  const { shell, shellDark, labelBg, accent } = colorDef;
+  const leafId = `cassetteLeaf-${colorDef.id}`;
+  return `<svg width="100%" height="100%" viewBox="0 0 380 260" style="overflow:visible;display:block;">
+    <defs>
+      <pattern id="${leafId}" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(10)">
+        <path d="M20 2 C27 12 27 24 20 34 C13 24 13 12 20 2 Z" fill="${accent}" opacity="0.3" />
+        <line x1="20" y1="16" x2="20" y2="34" stroke="${accent}" stroke-width="1" opacity="0.3" />
+        <circle cx="4" cy="20" r="2.4" fill="${accent}" opacity="0.22" />
+      </pattern>
+    </defs>
+
+    <rect x="4" y="8" width="372" height="246" rx="22" fill="${shellDark}" opacity="0.4" />
+    <rect x="0" y="0" width="372" height="246" rx="22" fill="${shell}" stroke="${shellDark}" stroke-width="1.5" />
+
+    <circle cx="26" cy="24" r="8" fill="${shellDark}" /><line x1="21" y1="24" x2="31" y2="24" stroke="${shell}" stroke-width="1.5" /><line x1="26" y1="19" x2="26" y2="29" stroke="${shell}" stroke-width="1.5" />
+    <circle cx="346" cy="24" r="8" fill="${shellDark}" /><line x1="341" y1="24" x2="351" y2="24" stroke="${shell}" stroke-width="1.5" /><line x1="346" y1="19" x2="346" y2="29" stroke="${shell}" stroke-width="1.5" />
+    <circle cx="26" cy="222" r="8" fill="${shellDark}" /><line x1="21" y1="222" x2="31" y2="222" stroke="${shell}" stroke-width="1.5" /><line x1="26" y1="217" x2="26" y2="227" stroke="${shell}" stroke-width="1.5" />
+    <circle cx="346" cy="222" r="8" fill="${shellDark}" /><line x1="341" y1="222" x2="351" y2="222" stroke="${shell}" stroke-width="1.5" /><line x1="346" y1="217" x2="346" y2="227" stroke="${shell}" stroke-width="1.5" />
+
+    <rect x="46" y="40" width="280" height="150" rx="14" fill="${labelBg}" stroke="${shellDark}" stroke-width="1" />
+    <rect x="46" y="40" width="280" height="150" rx="14" fill="url(#${leafId})" />
+
+    <rect x="140" y="48" width="92" height="22" rx="11" fill="#fbf8ee" stroke="${shellDark}" stroke-width="1" />
+    <text x="186" y="63" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="12" fill="${accent}">${esc(labelText || 'Songs for you')}</text>
+
+    <rect x="60" y="86" width="252" height="70" rx="8" fill="rgba(20,14,8,0.15)" />
+    <ellipse cx="122" cy="121" rx="34" ry="34" fill="rgba(30,20,12,0.25)" />
+    <ellipse cx="250" cy="121" rx="34" ry="34" fill="rgba(30,20,12,0.25)" />
+    <path d="M132 108 C160 96 194 96 222 108" stroke="#241a12" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.85" />
+
+    ${reelSVG(122, 121, accent)}
+    ${reelSVG(250, 121, accent)}
+
+    <rect x="46" y="198" width="280" height="30" rx="8" fill="${shellDark}" opacity="0.35" />
+    <circle cx="100" cy="213" r="6" fill="#7a5aa8" />
+    <circle cx="130" cy="213" r="5" fill="${shellDark}" />
+    <circle cx="242" cy="213" r="5" fill="${shellDark}" />
+    <circle cx="272" cy="213" r="6" fill="#7a5aa8" />
+  </svg>`;
+}
+
+function mixtapeCloseBtnHTML() {
+  return `<button data-action="mixtape-close" style="position:absolute;top:20px;right:20px;z-index:10;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.1);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#2c2c22;">✕</button>`;
+}
+
+function mixtapeStepIndicatorHTML(step) {
+  return `<div style="display:flex;align-items:flex-start;justify-content:center;margin:28px 0 8px;flex-wrap:wrap;">
+    ${MIXTAPE_STEPS.map((s, i) => `
+      ${i > 0 ? `<div style="width:44px;height:0;border-top:2px dotted #cfc8b4;margin:21px 6px 0;"></div>` : ''}
+      <button data-action="mixtape-step" data-step="${i + 1}" class="font-mono" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:none;cursor:pointer;">
+        <span style="width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;
+          background:${step === i + 1 ? '#2c4a3e' : '#faf6ec'};color:${step === i + 1 ? '#faf6ec' : '#8a8a78'};
+          border:2px solid ${step >= i + 1 ? '#2c4a3e' : '#d8d2c0'};">${i + 1}</span>
+        <span style="font-size:12px;color:${step === i + 1 ? '#2c4a3e' : '#8a8a78'};font-weight:${step === i + 1 ? 700 : 400};">${s}</span>
+      </button>
+    `).join('')}
+  </div>`;
+}
+
+function mixtapeStepContentHTML(mt, step) {
+  if (step === 1) {
+    return `<p class="font-mono" style="font-size:11px;color:#8a8a78;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;">Pick a color</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        ${MIXTAPE_COLORS.map(c => `
+          <button data-action="mixtape-pick-color" data-color="${c.id}" class="font-mono"
+            style="display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;border-radius:999px;cursor:pointer;
+            background:${mt.color === c.id ? '#faf3e2' : '#fff'};border:1.5px solid ${mt.color === c.id ? '#2c4a3e' : '#e4ddc8'};">
+            <span style="width:26px;height:18px;border-radius:4px;background:${c.shell};display:block;border:1px solid ${c.shellDark};"></span>
+            <span style="font-size:13px;color:#3a3a2e;">${esc(c.label)}</span>
+          </button>`).join('')}
+      </div>`;
+  }
+  if (step === 2) {
+    return `<p class="font-mono" style="font-size:11px;color:#8a8a78;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;">Label text</p>
+      <input type="text" value="${esc(state.mixtapeForm.label)}" data-scope="mixtapeForm" data-field="label" placeholder="Songs for you" class="font-serif"
+        style="width:100%;background:#fff;border:1px solid #e4ddc8;border-radius:14px;padding:12px 16px;color:#2c2c22;font-size:15px;outline:none;margin-bottom:12px;" />
+      <button data-action="mixtape-save-label" class="font-mono" style="padding:10px 20px;border-radius:14px;background:#2c4a3e;border:none;color:#faf6ec;cursor:pointer;font-size:13px;font-weight:700;">Save Label</button>`;
+  }
+  if (step === 3) {
+    return `<p class="font-mono" style="font-size:11px;color:#8a8a78;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;">Songs (${mt.songs.length})</p>
+      ${mt.songs.map((song, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #efe9d8;">
+          <div style="flex:1;min-width:0;">
+            <p class="font-serif" style="font-size:13px;color:#2c2c22;font-weight:600;">${esc(song.title || 'Untitled')}</p>
+            ${song.artist ? `<p class="font-mono" style="font-size:11px;color:#8a8a78;">${esc(song.artist)}</p>` : ''}
+            <audio controls src="${esc(song.url)}" style="width:100%;height:32px;margin-top:6px;"></audio>
+          </div>
+          <button data-action="mixtape-remove-song" data-index="${i}" style="width:28px;height:28px;border-radius:50%;background:rgba(220,60,60,0.08);border:1px solid rgba(220,60,60,0.2);color:#c0392b;cursor:pointer;flex-shrink:0;">✕</button>
+        </div>`).join('')}
+      <div style="margin-top:16px;padding-top:16px;${mt.songs.length ? 'border-top:1px solid #efe9d8;' : ''}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <input type="text" value="${esc(state.mixtapeForm.songTitle)}" data-scope="mixtapeForm" data-field="songTitle" placeholder="Song title" class="font-mono"
+            style="background:#fff;border:1px solid #e4ddc8;border-radius:12px;padding:10px 14px;color:#2c2c22;font-size:13px;outline:none;" />
+          <input type="text" value="${esc(state.mixtapeForm.songArtist)}" data-scope="mixtapeForm" data-field="songArtist" placeholder="Artist (optional)" class="font-mono"
+            style="background:#fff;border:1px solid #e4ddc8;border-radius:12px;padding:10px 14px;color:#2c2c22;font-size:13px;outline:none;" />
+        </div>
+        <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0;border-radius:14px;border:1px dashed #c9c0a4;color:${state.mixtapeUploading ? '#b8b096' : '#2c4a3e'};font-size:13px;cursor:${state.mixtapeUploading ? 'default' : 'pointer'};">
+          ${state.mixtapeUploading ? '⏳ Uploading...' : '📁 Upload a song (mp3)'}
+          <input type="file" accept="audio/*" style="display:none;" data-action="mixtape-song-file" ${state.mixtapeUploading ? 'disabled' : ''} />
+        </label>
+      </div>`;
+  }
+  return `<p class="font-mono" style="font-size:11px;color:#8a8a78;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;">A little note</p>
+    <textarea data-scope="mixtapeForm" data-field="note" placeholder="What this mixtape means..." rows="4" class="font-serif"
+      style="width:100%;background:#fff;border:1px solid #e4ddc8;border-radius:14px;padding:12px 16px;color:#2c2c22;font-size:14px;outline:none;resize:vertical;margin-bottom:12px;">${esc(state.mixtapeForm.note)}</textarea>
+    <button data-action="mixtape-save-note" class="font-mono" style="padding:10px 20px;border-radius:14px;background:#2c4a3e;border:none;color:#faf6ec;cursor:pointer;font-size:13px;font-weight:700;">Save Note</button>`;
+}
+
+function mixtapeBuilderHTML() {
+  const mt = state.owner.data.mixtape;
+  const colorDef = MIXTAPE_COLORS.find(c => c.id === mt.color) || MIXTAPE_COLORS[0];
+  const step = state.mixtapeStep;
+  return `
+  <div style="min-height:100vh;position:relative;background:linear-gradient(180deg, #faf6ec 0%, #faf6ec 340px, ${colorDef.labelBg} 340px, ${colorDef.labelBg} 100%);">
+    ${mixtapeCloseBtnHTML()}
+    <div style="max-width:640px;margin:0 auto;padding:44px 20px 110px;position:relative;">
+      <div style="text-align:center;">
+        <p class="font-mono" style="letter-spacing:0.18em;text-transform:uppercase;font-size:11px;color:#8a8a78;font-weight:700;">A little soundtrack, made by you</p>
+        <h1 class="font-serif" style="font-size:34px;color:#2c2c22;margin-top:8px;">Build your mixtape</h1>
+        <p class="font-mono" style="color:#6b6b5c;font-size:13px;max-width:440px;margin:12px auto 0;">One removable gift surface — toggle it off in Settings anytime without touching the rest of the gift.</p>
+      </div>
+
+      ${mixtapeStepIndicatorHTML(step)}
+
+      <div style="max-width:380px;margin:32px auto;filter:drop-shadow(0 18px 36px rgba(0,0,0,0.18));">${cassetteSVG(colorDef, mt.label)}</div>
+
+      <div style="background:#fff;border-radius:24px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
+        ${mixtapeStepContentHTML(mt, step)}
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;">
+        <button data-action="mixtape-back" class="font-mono" style="padding:12px 20px;border-radius:16px;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.08);color:#5a5a4c;font-size:13px;cursor:pointer;">‹ ${step > 1 ? 'Back' : 'Close'}</button>
+        ${step < MIXTAPE_STEPS.length
+          ? `<button data-action="mixtape-next" class="font-mono" style="padding:12px 22px;border-radius:16px;background:#2c4a3e;border:none;color:#faf6ec;font-size:13px;font-weight:700;cursor:pointer;">Next ›</button>`
+          : `<button data-action="mixtape-close" class="font-mono" style="padding:12px 22px;border-radius:16px;background:#2c4a3e;border:none;color:#faf6ec;font-size:13px;font-weight:700;cursor:pointer;">✓ Done</button>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function mixtapeViewHTML() {
+  const mt = state.recipient.data.mixtape;
+  const colorDef = MIXTAPE_COLORS.find(c => c.id === mt.color) || MIXTAPE_COLORS[0];
+  return `
+  <div style="min-height:100vh;position:relative;background:linear-gradient(180deg, #faf6ec 0%, #faf6ec 300px, ${colorDef.labelBg} 300px, ${colorDef.labelBg} 100%);">
+    ${mixtapeCloseBtnHTML()}
+    <div style="max-width:520px;margin:0 auto;padding:52px 20px 80px;text-align:center;">
+      <p class="font-mono" style="letter-spacing:0.18em;text-transform:uppercase;font-size:11px;color:#8a8a78;font-weight:700;">A little soundtrack, made for you</p>
+      <h1 class="font-serif" style="font-size:32px;color:#2c2c22;margin-top:8px;">A Mixtape For You 📻</h1>
+      <p class="font-mono" style="color:#6b6b5c;font-size:13px;margin-top:8px;">From your Dino 🦖</p>
+
+      <div style="max-width:380px;margin:28px auto;filter:drop-shadow(0 18px 36px rgba(0,0,0,0.18));">${cassetteSVG(colorDef, mt.label)}</div>
+
+      ${mt.songs.length ? `
+        <div style="background:#fff;border-radius:24px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,0.06);text-align:left;margin-bottom:16px;">
+          ${mt.songs.map(song => `
+            <div style="padding:10px 0;border-bottom:1px solid #efe9d8;">
+              <p class="font-serif" style="font-size:14px;color:#2c2c22;font-weight:600;">${esc(song.title || 'Untitled')}</p>
+              ${song.artist ? `<p class="font-mono" style="font-size:11px;color:#8a8a78;">${esc(song.artist)}</p>` : ''}
+              <audio controls src="${esc(song.url)}" style="width:100%;height:32px;margin-top:6px;"></audio>
+            </div>`).join('')}
+        </div>` : `<p class="font-mono" style="color:#8a8a78;font-size:13px;margin-bottom:16px;">No songs added yet...</p>`}
+
+      ${mt.note ? `
+        <div style="background:#fff;border-radius:18px;padding:18px 20px;box-shadow:0 6px 18px rgba(0,0,0,0.05);text-align:left;">
+          <p class="font-serif" style="font-size:13px;color:#3a3a2e;font-style:italic;">"${esc(mt.note)}"</p>
+        </div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Memory Map ───────────────────────────────────────────────────────────
+// A stylized (not geographically real) illustrated treasure-map, isolated
+// from the app-wide theme like Moon Chat/Mixtape. The two home cities
+// (fromCity/toCity, already tracked for the distance feature) sit as fixed
+// flag markers with a dotted "journey" line between them; the owner drops
+// heart-pin markers anywhere on the map, each holding a title, date, note,
+// optional photo and optional voice note.
+const MAP_SPECKLES = Array.from({ length: 60 }, () => ({
+  x: Math.random() * 800, y: Math.random() * 460, r: 0.6 + Math.random() * 1,
+}));
+function treeIcon(x, y, scale = 1) {
+  return `<g transform="translate(${x} ${y}) scale(${scale})">
+    <rect x="-1.5" y="6" width="3" height="6" fill="#6b4a2f"/>
+    <path d="M0 -8 L7 6 L-7 6 Z" fill="#5c7a4a"/>
+    <path d="M0 -3 L5 6 L-5 6 Z" fill="#6b8a57"/>
+  </g>`;
+}
+function compassRose(cx, cy, r) {
+  return `<g>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#8a6a3f" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="${cx}" cy="${cy}" r="${r * 0.6}" fill="none" stroke="#8a6a3f" stroke-width="1" opacity="0.5"/>
+    <path d="M${cx} ${cy - r} L${cx + r * 0.18} ${cy} L${cx} ${cy + r} L${cx - r * 0.18} ${cy} Z" fill="#8a6a3f" opacity="0.8"/>
+    <path d="M${cx - r} ${cy} L${cx} ${cy - r * 0.18} L${cx + r} ${cy} L${cx} ${cy + r * 0.18} Z" fill="#8a6a3f" opacity="0.5"/>
+    <text x="${cx}" y="${cy - r - 6}" text-anchor="middle" font-size="11" fill="#8a6a3f" font-family="Georgia,serif">N</text>
+  </g>`;
+}
+function cornerFlourish(x, y, rot) {
+  return `<g transform="translate(${x} ${y}) rotate(${rot})">
+    <path d="M0 0 Q22 0 22 22 Q22 34 34 34" fill="none" stroke="#8a6a3f" stroke-width="2" opacity="0.5"/>
+    <circle cx="34" cy="34" r="3" fill="#8a6a3f" opacity="0.5"/>
+  </g>`;
+}
+function waveSquiggle(x, y) {
+  return `<path d="M${x} ${y} Q${x + 10} ${y - 5} ${x + 20} ${y} Q${x + 30} ${y + 5} ${x + 40} ${y}" stroke="#8a6a3f" stroke-width="1.5" fill="none" opacity="0.4"/>`;
+}
+function mapSVG() {
+  const speckles = MAP_SPECKLES.map(s => `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="${s.r.toFixed(1)}" fill="#8a6a3f" opacity="0.12"/>`).join('');
+  return `<svg width="100%" height="100%" viewBox="0 0 800 460" preserveAspectRatio="xMidYMid slice" style="display:block;">
+    <defs>
+      <linearGradient id="parchmentGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#f6ecd2"/>
+        <stop offset="100%" stop-color="#e3cd9c"/>
+      </linearGradient>
+      <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+        <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="100%" stop-color="#5a4322" stop-opacity="0.4"/>
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="800" height="460" fill="url(#parchmentGrad)"/>
+    ${speckles}
+    <path d="M60 340 C40 300 70 250 130 240 C190 230 230 270 220 320 C210 370 150 400 100 390 C70 384 75 360 60 340 Z" fill="#a9c39a" stroke="#7f9a6e" stroke-width="2" opacity="0.9"/>
+    <path d="M600 120 C560 90 580 40 640 30 C700 20 750 50 745 100 C740 150 690 170 650 160 C620 153 630 140 600 120 Z" fill="#a9c39a" stroke="#7f9a6e" stroke-width="2" opacity="0.9"/>
+    <path d="M420 380 C400 360 410 330 445 320 C480 310 510 330 505 360 C500 390 460 405 435 398 C425 395 428 388 420 380 Z" fill="#b8cca8" stroke="#7f9a6e" stroke-width="2" opacity="0.85"/>
+    ${treeIcon(110, 300, 1.3)}${treeIcon(150, 320, 1)}${treeIcon(660, 80, 1.2)}${treeIcon(455, 355, 0.9)}
+    ${waveSquiggle(20, 260)}${waveSquiggle(200, 380)}${waveSquiggle(590, 150)}${waveSquiggle(390, 400)}
+    <path d="M140 230 Q400 120 660 230" fill="none" stroke="#8a6a3f" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round" opacity="0.6"/>
+    ${compassRose(735, 70, 32)}
+    <rect x="10" y="10" width="780" height="440" fill="none" stroke="#8a6a3f" stroke-width="3" opacity="0.5"/>
+    <rect x="16" y="16" width="768" height="428" fill="none" stroke="#8a6a3f" stroke-width="1" opacity="0.4"/>
+    ${cornerFlourish(16, 16, 0)}${cornerFlourish(784, 16, 90)}${cornerFlourish(784, 444, 180)}${cornerFlourish(16, 444, 270)}
+    <rect x="0" y="0" width="800" height="460" fill="url(#vignette)"/>
+  </svg>`;
+}
+function homeFlagSVG(color) {
+  return `<svg width="26" height="42" viewBox="0 0 26 42" style="overflow:visible;display:block;">
+    <ellipse cx="6" cy="40" rx="6" ry="2" fill="rgba(0,0,0,0.18)"/>
+    <line x1="6" y1="4" x2="6" y2="40" stroke="#6b4a2f" stroke-width="2"/>
+    <path d="M6 4 L23 10 L6 16 Z" fill="${color}" stroke="#6b4a2f" stroke-width="1"/>
+  </svg>`;
+}
+function pinMarkerSVG(color) {
+  return `<svg width="28" height="34" viewBox="0 0 28 32" style="overflow:visible;display:block;">
+    <ellipse cx="14" cy="30" rx="5" ry="1.6" fill="rgba(0,0,0,0.2)"/>
+    <path d="M14 2 C21 2 26 7.5 26 14 C26 21 14 30 14 30 C14 30 2 21 2 14 C2 7.5 7 2 14 2 Z" fill="${color}" stroke="#ffffff" stroke-width="1.4"/>
+    <path d="M14 17.5 C10.5 14.3 8.6 12 8.6 9.8 C8.6 8 10 6.6 11.7 6.6 C12.8 6.6 13.7 7.2 14 8.2 C14.3 7.2 15.2 6.6 16.3 6.6 C18 6.6 19.4 8 19.4 9.8 C19.4 12 17.5 14.3 14 17.5 Z" fill="#ffffff"/>
+  </svg>`;
+}
+function memoryMapPinsHTML(pins, fromCity, toCity) {
+  return `
+    <div style="position:absolute;left:17.5%;top:50%;transform:translate(-50%,-100%);">${homeFlagSVG('#e9c349')}</div>
+    <div style="position:absolute;left:17.5%;top:50%;transform:translate(-50%,6px);font-family:Georgia,serif;font-size:12px;color:#5a4322;font-weight:700;text-align:center;white-space:nowrap;text-shadow:0 1px 2px rgba(255,255,255,0.5);">${esc(fromCity)}</div>
+    <div style="position:absolute;left:82.5%;top:50%;transform:translate(-50%,-100%);">${homeFlagSVG('#fb7185')}</div>
+    <div style="position:absolute;left:82.5%;top:50%;transform:translate(-50%,6px);font-family:Georgia,serif;font-size:12px;color:#5a4322;font-weight:700;text-align:center;white-space:nowrap;text-shadow:0 1px 2px rgba(255,255,255,0.5);">${esc(toCity)}</div>
+    ${pins.map(p => `
+      <button data-action="memorymap-view-pin" data-id="${p.id}" title="${esc(p.title)}"
+        style="position:absolute;left:${p.x}%;top:${p.y}%;transform:translate(-50%,-100%);background:none;border:none;cursor:pointer;padding:0;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+        ${pinMarkerSVG('#e9c349')}
+      </button>`).join('')}
+  `;
+}
+function memoryPinFormHTML() {
+  const d = state.memoryMapDraft;
+  return `
+  <div data-action="memorymap-cancel-pin" style="position:fixed;inset:0;z-index:60;background:rgba(20,14,8,0.55);display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div data-action="stop" style="background:#f6ecd2;border-radius:24px;padding:24px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <p class="font-mono" style="font-size:11px;color:#8a6a3f;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">New memory</p>
+      <h3 class="font-serif" style="font-size:22px;color:#2c2c22;margin-bottom:16px;">Pin this moment 📍</h3>
+      <input type="text" value="${esc(d.title)}" data-scope="memoryMapDraft" data-field="title" placeholder="What happened here?" class="font-serif"
+        style="width:100%;background:#fff;border:1px solid #ddc9a0;border-radius:14px;padding:12px 16px;color:#2c2c22;font-size:15px;outline:none;margin-bottom:10px;" />
+      <input type="text" value="${esc(d.date)}" data-scope="memoryMapDraft" data-field="date" placeholder="Date" class="font-mono"
+        style="width:100%;background:#fff;border:1px solid #ddc9a0;border-radius:14px;padding:10px 16px;color:#2c2c22;font-size:13px;outline:none;margin-bottom:10px;" />
+      <textarea data-scope="memoryMapDraft" data-field="note" placeholder="A little note about this memory..." rows="3" class="font-serif"
+        style="width:100%;background:#fff;border:1px solid #ddc9a0;border-radius:14px;padding:12px 16px;color:#2c2c22;font-size:14px;outline:none;resize:vertical;margin-bottom:10px;">${esc(d.note)}</textarea>
+      ${d.photoUrl ? `<img src="${esc(d.photoUrl)}" style="width:100%;border-radius:14px;margin-bottom:10px;display:block;" />` : ''}
+      <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;border-radius:14px;border:1px dashed #c9b183;color:${state.memoryMapUploading ? '#b8a67c' : '#8a6a3f'};font-size:12px;cursor:${state.memoryMapUploading ? 'default' : 'pointer'};margin-bottom:10px;">
+        ${state.memoryMapUploading ? '⏳ Uploading...' : (d.photoUrl ? '📷 Change photo' : '📷 Add a photo (optional)')}
+        <input type="file" accept="image/*" style="display:none;" data-action="memorymap-photo-file" ${state.memoryMapUploading ? 'disabled' : ''} />
+      </label>
+      ${d.voiceUrl ? `<audio controls src="${esc(d.voiceUrl)}" style="width:100%;height:32px;margin-bottom:10px;"></audio>` : ''}
+      <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;border-radius:14px;border:1px dashed #c9b183;color:${state.memoryMapUploading ? '#b8a67c' : '#8a6a3f'};font-size:12px;cursor:${state.memoryMapUploading ? 'default' : 'pointer'};margin-bottom:16px;">
+        ${state.memoryMapUploading ? '⏳ Uploading...' : (d.voiceUrl ? '🎙️ Change voice note' : '🎙️ Add a voice note (optional)')}
+        <input type="file" accept="audio/*" style="display:none;" data-action="memorymap-voice-file" ${state.memoryMapUploading ? 'disabled' : ''} />
+      </label>
+      <div style="display:flex;gap:10px;">
+        <button data-action="memorymap-cancel-pin" class="font-mono" style="flex:1;padding:12px 0;border-radius:14px;background:rgba(0,0,0,0.05);border:1px solid rgba(0,0,0,0.1);color:#5a5a4c;cursor:pointer;font-size:13px;">Cancel</button>
+        <button data-action="memorymap-save-pin" class="font-mono" style="flex:1;padding:12px 0;border-radius:14px;background:#8a6a3f;border:none;color:#f6ecd2;cursor:pointer;font-size:13px;font-weight:700;">📍 Drop Pin</button>
+      </div>
+    </div>
+  </div>`;
+}
+function memoryPinDetailHTML(pin, editable) {
+  return `
+  <div data-action="memorymap-close-detail" style="position:fixed;inset:0;z-index:60;background:rgba(20,14,8,0.55);display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div data-action="stop" style="background:#f6ecd2;border-radius:24px;padding:24px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
+        <p class="font-mono" style="font-size:11px;color:#8a6a3f;text-transform:uppercase;letter-spacing:0.15em;">${esc(pin.date)}</p>
+        <button data-action="memorymap-close-detail" style="width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.06);border:none;cursor:pointer;color:#5a5a4c;">✕</button>
+      </div>
+      <h3 class="font-serif" style="font-size:22px;color:#2c2c22;margin-bottom:14px;">${esc(pin.title)}</h3>
+      ${pin.photoUrl ? `<img src="${esc(pin.photoUrl)}" style="width:100%;border-radius:14px;margin-bottom:14px;display:block;" />` : ''}
+      ${pin.note ? `<p class="font-serif" style="font-size:14px;color:#3a3a2e;line-height:1.6;margin-bottom:14px;">${esc(pin.note)}</p>` : ''}
+      ${pin.voiceUrl ? `<audio controls src="${esc(pin.voiceUrl)}" style="width:100%;height:32px;margin-bottom:14px;"></audio>` : ''}
+      ${editable ? `<button data-action="memorymap-delete-pin" data-id="${pin.id}" class="font-mono" style="width:100%;padding:10px 0;border-radius:14px;background:rgba(220,60,60,0.08);border:1px solid rgba(220,60,60,0.2);color:#c0392b;cursor:pointer;font-size:12px;">🗑 Delete this memory</button>` : ''}
+    </div>
+  </div>`;
+}
+function memoryMapBuilderHTML() {
+  const data = state.owner.data;
+  const mm = data.memoryMap;
+  const showOverlay = !!(state.memoryMapDraft || state.memoryMapViewingId);
+  const viewingPin = state.memoryMapViewingId ? mm.pins.find(p => p.id === state.memoryMapViewingId) : null;
+  return `
+  <div style="min-height:100vh;position:relative;background:linear-gradient(180deg,#2b2115 0%,#161009 100%);">
+    <div style="position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+      <div>
+        <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#f0dfb8;">Memory Map 🗺️</h2>
+        <p class="font-mono" style="font-size:11px;color:rgba(240,223,184,0.55);margin-top:2px;">${mm.pins.length} memor${mm.pins.length === 1 ? 'y' : 'ies'} pinned</p>
+      </div>
+      <button data-action="memorymap-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#f0dfb8;">✕</button>
+    </div>
+    <div style="max-width:900px;margin:0 auto;padding:0 16px 50px;position:relative;z-index:5;">
+      <div ${showOverlay ? '' : 'data-action="memorymap-place"'} style="position:relative;width:100%;aspect-ratio:800/460;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.5);cursor:${showOverlay ? 'default' : 'crosshair'};">
+        ${mapSVG()}
+        ${memoryMapPinsHTML(mm.pins, data.fromCity, data.toCity)}
+      </div>
+      <p class="font-mono" style="text-align:center;color:rgba(240,223,184,0.45);font-size:11px;margin-top:12px;">Tap anywhere on the map to drop a memory pin</p>
+    </div>
+    ${state.memoryMapDraft ? memoryPinFormHTML() : ''}
+    ${viewingPin ? memoryPinDetailHTML(viewingPin, true) : ''}
+  </div>`;
+}
+function memoryMapViewHTML() {
+  const data = state.recipient.data;
+  const mm = data.memoryMap;
+  const viewingPin = state.memoryMapViewingId ? mm.pins.find(p => p.id === state.memoryMapViewingId) : null;
+  return `
+  <div style="min-height:100vh;position:relative;background:linear-gradient(180deg,#2b2115 0%,#161009 100%);">
+    <div style="position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+      <div>
+        <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#f0dfb8;">Our Memory Map 🗺️</h2>
+        <p class="font-mono" style="font-size:11px;color:rgba(240,223,184,0.55);margin-top:2px;">From your Dino 🦖</p>
+      </div>
+      <button data-action="memorymap-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#f0dfb8;">✕</button>
+    </div>
+    <div style="max-width:900px;margin:0 auto;padding:0 16px 50px;position:relative;z-index:5;">
+      <div style="position:relative;width:100%;aspect-ratio:800/460;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+        ${mapSVG()}
+        ${memoryMapPinsHTML(mm.pins, data.fromCity, data.toCity)}
+      </div>
+      <p class="font-mono" style="text-align:center;color:rgba(240,223,184,0.45);font-size:11px;margin-top:12px;">${mm.pins.length ? 'Tap a pin to relive the memory' : 'No memories pinned yet...'}</p>
+    </div>
+    ${viewingPin ? memoryPinDetailHTML(viewingPin, false) : ''}
+  </div>`;
+}
+
+// ── Collection ───────────────────────────────────────────────────────────
+// A read-only, chronological feed pulling together everything that's been
+// sent — letters, photos, moon-chat lines, mixtape songs, memory-map pins,
+// and the bouquet — each dated, newest first, so nothing sent ever gets
+// lost in a specific tab. Same screen for owner and recipient.
+function formatEntryDate(iso, fallback) {
+  if (!iso) return fallback || '';
+  try { return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+  catch (e) { return fallback || ''; }
+}
+function buildCollectionEntries(data) {
+  const entries = [];
+  (data.letters || []).forEach(l => {
+    const extras = [];
+    if (l.hasPhoto) extras.push('📷 photo');
+    if (l.hasVideo) extras.push('🎬 video');
+    if (l.hasMusic) extras.push('🎵 music');
+    if (l.hasAudio) extras.push('🎙️ voice');
+    entries.push({
+      icon: '✉️', title: l.title || l.label || 'A letter',
+      sub: extras.join(' · ') || null,
+      date: l.date || formatEntryDate(l.createdAt), ts: l.createdAt || 0,
+    });
+  });
+  (data.gallery || []).forEach(p => entries.push({
+    icon: '📷', title: p.caption || 'A photo', sub: p.location || null,
+    date: p.date || formatEntryDate(p.createdAt), ts: p.createdAt || 0,
+  }));
+  (data.moonMessages || []).forEach(m => entries.push({
+    icon: '🌙', title: m.text.length > 70 ? m.text.slice(0, 70) + '…' : m.text,
+    sub: m.from === 'dino' ? 'You, to Panther' : "Moon's reply",
+    date: formatEntryDate(m.createdAt), ts: m.createdAt || 0,
+  }));
+  ((data.mixtape && data.mixtape.songs) || []).forEach(s => entries.push({
+    icon: '🎵', title: s.title || 'Untitled song', sub: s.artist || null,
+    date: formatEntryDate(s.addedAt), ts: s.addedAt || 0,
+  }));
+  ((data.memoryMap && data.memoryMap.pins) || []).forEach(pn => entries.push({
+    icon: '📍', title: pn.title || 'A memory',
+    sub: pn.note ? (pn.note.length > 60 ? pn.note.slice(0, 60) + '…' : pn.note) : null,
+    date: pn.date || formatEntryDate(pn.createdAt), ts: pn.createdAt || 0,
+  }));
+  if (data.bouquet && data.bouquet.flowers && data.bouquet.flowers.length) {
+    entries.push({
+      icon: '💐', title: `Bouquet · ${data.bouquet.flowers.length} blooms`, sub: data.bouquet.note || null,
+      date: formatEntryDate(data.bouquet.updatedAt), ts: data.bouquet.updatedAt || 0,
+    });
+  }
+  entries.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+  return entries;
+}
+function collectionHTML() {
+  const data = (state.isRecipient && state.recipient.data) ? state.recipient.data : state.owner.data;
+  const entries = buildCollectionEntries(data);
+  return `
+  <div style="${PAGE_STYLE}">
+    ${skyBackdropHTML(data.theme)}
+    <div style="${INNER_STYLE}">
+      <div style="padding-top:24px;padding-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.18em;margin-bottom:4px;">Everything, together</p>
+          <h1 class="font-serif" style="font-size:26px;font-weight:700;color:white;">The Collection 📚</h1>
+          <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">${entries.length} thing${entries.length === 1 ? '' : 's'} sent, in order</p>
+        </div>
+        <button data-action="collection-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
+      </div>
+      ${entries.length ? `
+        <div style="display:flex;flex-direction:column;">
+          ${entries.map((e, i) => `
+            <div class="glass-gold" style="border-radius:18px;padding:16px 18px;display:flex;align-items:flex-start;gap:14px;margin-bottom:10px;animation:slideUp 0.3s ${Math.min(i * 0.03, 0.6)}s ease-out both;">
+              <div style="font-size:24px;flex-shrink:0;line-height:1;">${e.icon}</div>
+              <div style="flex:1;min-width:0;">
+                <p class="font-serif" style="font-size:15px;color:#eef4ff;font-weight:600;">${esc(e.title)}</p>
+                ${e.sub ? `<p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.55);margin-top:3px;">${esc(e.sub)}</p>` : ''}
+              </div>
+              ${e.date ? `<p class="font-mono" style="font-size:10px;color:var(--accent);white-space:nowrap;flex-shrink:0;">${esc(e.date)}</p>` : ''}
+            </div>`).join('')}
+        </div>` : emptyStateHTML('Nothing sent yet — start with a letter, a photo, or a song.', '📚')}
     </div>
   </div>`;
 }
@@ -1536,7 +2359,7 @@ function ownerStudioHTML() {
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
-        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['moon', 'Talk to Moon']].map(([t, label]) => `
+        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['mixtape', 'Mixtape'], ['memorymap', 'Memory Map'], ['collection', 'Collection'], ['moon', 'Talk to Moon']].map(([t, label]) => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(178,200,237,0.06);">
             <span class="font-mono" style="font-size:13px;color:#b2c8ed;">${label}</span>
             <label class="toggle-wrap">
@@ -1640,6 +2463,7 @@ async function addPhoto() {
     caption: (state.newPhoto.caption || '').trim() || 'A memory for you',
     date: todayLabel(),
     location: (state.newPhoto.location || '').trim() || 'Under our sky',
+    createdAt: new Date().toISOString(),
   };
   state.newPhoto = { url: '', caption: '', location: '' };
   await persist({ ...state.owner.data, gallery: [photo, ...state.owner.data.gallery] });
@@ -1672,31 +2496,67 @@ async function pickSkyColor(id) {
 async function addBouquetFlower(id) {
   const bq = state.owner.data.bouquet;
   if (bq.flowers.length >= MAX_FLOWERS) return;
-  await persist({ ...state.owner.data, bouquet: { ...bq, flowers: [...bq.flowers, id] } });
+  await persist({ ...state.owner.data, bouquet: { ...bq, flowers: [...bq.flowers, id], updatedAt: new Date().toISOString() } });
 }
 async function applyBouquetTemplate(id) {
   const t = BOUQUET_TEMPLATES.find(x => x.id === id);
   if (!t) return;
   if (state.owner.data.bouquet.flowers.length > 0 && !window.confirm('Replace your current flowers with this template?')) return;
-  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, flowers: [...t.flowers], wrapping: t.wrapping } });
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, flowers: [...t.flowers], wrapping: t.wrapping, updatedAt: new Date().toISOString() } });
 }
 async function removeBouquetFlower(index) {
   const bq = state.owner.data.bouquet;
-  await persist({ ...state.owner.data, bouquet: { ...bq, flowers: bq.flowers.filter((_, i) => i !== index) } });
+  await persist({ ...state.owner.data, bouquet: { ...bq, flowers: bq.flowers.filter((_, i) => i !== index), updatedAt: new Date().toISOString() } });
 }
 async function pickBouquetWrapping(id) {
-  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, wrapping: id } });
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, wrapping: id, updatedAt: new Date().toISOString() } });
 }
 async function pickBouquetBgPreset(id) {
-  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, background: { type: 'preset', value: id } } });
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, background: { type: 'preset', value: id }, updatedAt: new Date().toISOString() } });
 }
 async function setBouquetBgCustom() {
   const url = (state.bouquetForm.bgUrl || '').trim();
   if (!url) return;
-  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, background: { type: 'custom', value: url } } });
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, background: { type: 'custom', value: url }, updatedAt: new Date().toISOString() } });
 }
 async function saveBouquetNote() {
-  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, note: state.bouquetForm.note } });
+  await persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, note: state.bouquetForm.note, updatedAt: new Date().toISOString() } });
+}
+async function pickMixtapeColor(id) {
+  await persist({ ...state.owner.data, mixtape: { ...state.owner.data.mixtape, color: id, updatedAt: new Date().toISOString() } });
+}
+async function saveMixtapeLabel() {
+  const label = (state.mixtapeForm.label || '').trim() || 'Songs for you';
+  await persist({ ...state.owner.data, mixtape: { ...state.owner.data.mixtape, label, updatedAt: new Date().toISOString() } });
+}
+async function removeMixtapeSong(index) {
+  const mt = state.owner.data.mixtape;
+  await persist({ ...state.owner.data, mixtape: { ...mt, songs: mt.songs.filter((_, i) => i !== index), updatedAt: new Date().toISOString() } });
+}
+async function saveMixtapeNote() {
+  await persist({ ...state.owner.data, mixtape: { ...state.owner.data.mixtape, note: state.mixtapeForm.note, updatedAt: new Date().toISOString() } });
+}
+async function addMemoryPin() {
+  const d = state.memoryMapDraft;
+  if (!d) return;
+  const pin = {
+    id: `pin-${Date.now()}`,
+    x: d.x, y: d.y,
+    title: (d.title || '').trim() || 'A memory',
+    date: (d.date || '').trim() || todayLabel(),
+    note: d.note || '',
+    photoUrl: d.photoUrl || '',
+    voiceUrl: d.voiceUrl || '',
+    createdAt: new Date().toISOString(),
+  };
+  const mm = state.owner.data.memoryMap;
+  state.memoryMapDraft = null;
+  await persist({ ...state.owner.data, memoryMap: { ...mm, pins: [...mm.pins, pin] } });
+}
+async function deleteMemoryPin(id) {
+  const mm = state.owner.data.memoryMap;
+  state.memoryMapViewingId = null;
+  await persist({ ...state.owner.data, memoryMap: { ...mm, pins: mm.pins.filter(p => p.id !== id) } });
 }
 function copyLink() {
   navigator.clipboard.writeText(shareUrl());
@@ -1715,7 +2575,7 @@ async function addMoonLine(from) {
   const text = (state.moonEditor[field] || '').trim();
   if (!text) return;
   state.moonEditor[field] = '';
-  await persist({ ...state.owner.data, moonMessages: [...state.owner.data.moonMessages, { id: `moon-${Date.now()}`, from, text }] });
+  await persist({ ...state.owner.data, moonMessages: [...state.owner.data.moonMessages, { id: `moon-${Date.now()}`, from, text, createdAt: new Date().toISOString() }] });
 }
 function moonEditStart(id) {
   const m = state.owner.data.moonMessages.find(x => x.id === id);
@@ -1746,6 +2606,8 @@ async function unlock() {
     state.owner.data = normalizeData(d);
     state.owner.cityForm = { fromCity: state.owner.data.fromCity, toCity: state.owner.data.toCity };
     state.bouquetForm.note = state.owner.data.bouquet.note;
+    state.mixtapeForm.label = state.owner.data.mixtape.label;
+    state.mixtapeForm.note = state.owner.data.mixtape.note;
     applyTheme(state.owner.data.theme);
     render();
   }
@@ -1856,6 +2718,9 @@ function handleClick(e) {
       break;
     case 'moon-close':
     case 'bouquet-close':
+    case 'mixtape-close':
+    case 'memorymap-close':
+    case 'collection-close':
       if (state.isRecipient && state.recipient.data) state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
       else state.owner.tab = 'home';
       render();
@@ -1867,6 +2732,35 @@ function handleClick(e) {
     case 'bouquet-pick-bg-preset': pickBouquetBgPreset(el.dataset.bg); break;
     case 'bouquet-set-bg-custom': setBouquetBgCustom(); break;
     case 'bouquet-save-note': saveBouquetNote(); break;
+    case 'mixtape-step': state.mixtapeStep = Number(el.dataset.step); render(); break;
+    case 'mixtape-back':
+      if (state.mixtapeStep > 1) { state.mixtapeStep--; render(); break; }
+      if (state.isRecipient && state.recipient.data) state.recipient.tab = firstVisibleRecipientTab(state.recipient.data);
+      else state.owner.tab = 'home';
+      render();
+      break;
+    case 'mixtape-next': state.mixtapeStep = Math.min(MIXTAPE_STEPS.length, state.mixtapeStep + 1); render(); break;
+    case 'mixtape-pick-color': pickMixtapeColor(el.dataset.color); break;
+    case 'mixtape-save-label': saveMixtapeLabel(); break;
+    case 'mixtape-remove-song':
+      if (window.confirm('Remove this song?')) removeMixtapeSong(Number(el.dataset.index));
+      break;
+    case 'mixtape-save-note': saveMixtapeNote(); break;
+    case 'memorymap-place': {
+      const rect = el.getBoundingClientRect();
+      const xPct = Math.max(3, Math.min(97, ((e.clientX - rect.left) / rect.width) * 100));
+      const yPct = Math.max(3, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+      state.memoryMapDraft = { x: Number(xPct.toFixed(1)), y: Number(yPct.toFixed(1)), title: '', date: todayLabel(), note: '', photoUrl: '', voiceUrl: '' };
+      render();
+      break;
+    }
+    case 'memorymap-cancel-pin': state.memoryMapDraft = null; render(); break;
+    case 'memorymap-save-pin': addMemoryPin(); break;
+    case 'memorymap-view-pin': state.memoryMapViewingId = el.dataset.id; render(); break;
+    case 'memorymap-close-detail': state.memoryMapViewingId = null; render(); break;
+    case 'memorymap-delete-pin':
+      if (window.confirm('Delete this memory?')) deleteMemoryPin(el.dataset.id);
+      break;
     case 'recipient-tab': state.recipient.tab = el.dataset.tab; render(); break;
     case 'recipient-retry': window.location.reload(); break;
   }
@@ -1882,6 +2776,8 @@ function handleInput(e) {
     : scope === 'cityForm' ? state.owner.cityForm
     : scope === 'moonEditor' ? state.moonEditor
     : scope === 'bouquetForm' ? state.bouquetForm
+    : scope === 'mixtapeForm' ? state.mixtapeForm
+    : scope === 'memoryMapDraft' ? state.memoryMapDraft
     : null;
   if (target) target[field] = t.value;
   // keep the add buttons' disabled state in sync without a full re-render
@@ -1940,6 +2836,69 @@ function handleChange(e) {
       })
       .finally(() => {
         state.editor.musicUploading = false;
+        render();
+      });
+  } else if (action === 'mixtape-song-file') {
+    const file = el.files && el.files[0];
+    if (!file) return;
+    state.mixtapeUploading = true;
+    render();
+    uploadMixtapeSong(file)
+      .then(url => {
+        const song = {
+          id: `song-${Date.now()}`,
+          title: (state.mixtapeForm.songTitle || '').trim() || file.name.replace(/\.[^.]+$/, ''),
+          artist: (state.mixtapeForm.songArtist || '').trim(),
+          url,
+          addedAt: new Date().toISOString(),
+        };
+        state.mixtapeForm.songTitle = '';
+        state.mixtapeForm.songArtist = '';
+        const mt = state.owner.data.mixtape;
+        return persist({ ...state.owner.data, mixtape: { ...mt, songs: [...mt.songs, song], updatedAt: new Date().toISOString() } });
+      })
+      .catch(err => {
+        console.error('❌ Mixtape song upload error:', err);
+        window.alert('Song upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+      })
+      .finally(() => {
+        state.mixtapeUploading = false;
+        render();
+      });
+  } else if (action === 'memorymap-photo-file') {
+    const file = el.files && el.files[0];
+    if (!file || !state.memoryMapDraft) return;
+    state.memoryMapUploading = true;
+    render();
+    uploadMemoryFile(file, 'photo')
+      .then(url => {
+        if (!state.memoryMapDraft) return; // form was closed mid-upload
+        state.memoryMapDraft.photoUrl = url;
+      })
+      .catch(err => {
+        console.error('❌ Memory photo upload error:', err);
+        window.alert('Photo upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+      })
+      .finally(() => {
+        state.memoryMapUploading = false;
+        render();
+      });
+  } else if (action === 'memorymap-voice-file') {
+    const file = el.files && el.files[0];
+    if (!file || !state.memoryMapDraft) return;
+    state.memoryMapUploading = true;
+    render();
+    uploadMemoryFile(file, 'voice')
+      .then(url => {
+        if (!state.memoryMapDraft) return;
+        state.memoryMapDraft.voiceUrl = url;
+      })
+      .catch(err => {
+        console.error('❌ Memory voice upload error:', err);
+        window.alert('Voice note upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+      })
+      .finally(() => {
+        state.memoryMapUploading = false;
         render();
       });
   }

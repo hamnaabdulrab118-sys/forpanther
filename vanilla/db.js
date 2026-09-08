@@ -51,6 +51,20 @@ export async function uploadMusicFile(file) {
   return getDownloadURL(storageRef);
 }
 
+export async function uploadMixtapeSong(file) {
+  const path = `mixtape/${Date.now()}-${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
+export async function uploadMemoryFile(file, kind) {
+  const path = `memories/${kind}/${Date.now()}-${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
 export async function saveData(data) {
   try {
     await setDoc(doc(db, 'forpanther', DOC_ID), {
