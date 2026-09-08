@@ -756,3 +756,590 @@ SCENES.november = {
     return () => {};
   },
 };
+
+// ── May: Rain & thunder ─────────────────────────────────────────────────
+// Adapted from "threejs-rain-thunder" — kept the 3D rain/cloud/lightning
+// scene as-is; its cloud texture (originally hotlinked from a stock-photo
+// CDN — a licensing and reliability risk) is generated procedurally instead.
+function makeCloudPuffTexture() {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  for (let i = 0; i < 7; i++) {
+    const x = size / 2 + (Math.random() - 0.5) * size * 0.5;
+    const y = size / 2 + (Math.random() - 0.5) * size * 0.5;
+    const r = size * 0.22 + Math.random() * size * 0.16;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.5)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+  }
+  const g0 = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g0.addColorStop(0, 'rgba(255,255,255,0.85)');
+  g0.addColorStop(0.5, 'rgba(255,255,255,0.4)');
+  g0.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = g0;
+  ctx.fillRect(0, 0, size, size);
+  return c;
+}
+SCENES.may = {
+  mount(container) {
+    if (typeof window.THREE === 'undefined') return () => {};
+    const THREE = window.THREE;
+    const canvas = fullCanvas(container);
+    let animId, resizeHandler;
+
+    const scene = new THREE.Scene();
+    const width = container.clientWidth || window.innerWidth;
+    const height = container.clientHeight || window.innerHeight;
+    const camera = new THREE.PerspectiveCamera(60, width / height, 1, 1000);
+    camera.position.z = 1;
+    camera.rotation.set(1.16, -0.12, 0.27);
+
+    scene.add(new THREE.AmbientLight(0x555555));
+    const directionalLight = new THREE.DirectionalLight(0xffeedd);
+    directionalLight.position.set(0, 0, 1);
+    scene.add(directionalLight);
+    const flash = new THREE.PointLight(0x062d89, 30, 500, 1.7);
+    flash.position.set(200, 300, 100);
+    scene.add(flash);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    scene.fog = new THREE.FogExp2(0x11111f, 0.002);
+    renderer.setClearColor(scene.fog.color);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(width, height);
+
+    const rainCount = 15000;
+    const positions = [];
+    for (let i = 0; i < rainCount; i++) {
+      positions.push(Math.random() * 400 - 200, Math.random() * 500 - 250, Math.random() * 400 - 200);
+    }
+    const rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    const rainMaterial = new THREE.PointsMaterial({ color: 0xaaaaaa, size: 0.4, transparent: true });
+    const rain = new THREE.Points(rainGeo, rainMaterial);
+    scene.add(rain);
+
+    const cloudParticles = [];
+    const cloudTex = new THREE.CanvasTexture(makeCloudPuffTexture());
+    const CloudGeoCtor = THREE.PlaneBufferGeometry || THREE.PlaneGeometry;
+    const cloudGeo = new CloudGeoCtor(500, 500);
+    const cloudMaterial = new THREE.MeshLambertMaterial({ map: cloudTex, transparent: true, opacity: 0.6 });
+    for (let p = 0; p < 25; p++) {
+      const cloud = new THREE.Mesh(cloudGeo, cloudMaterial);
+      cloud.position.set(Math.random() * 800 - 400, 500, Math.random() * 500 - 450);
+      cloud.rotation.set(1.16, -0.12, Math.random() * 360);
+      cloudParticles.push(cloud);
+      scene.add(cloud);
+    }
+
+    function resize() {
+      const w = container.clientWidth || window.innerWidth;
+      const h = container.clientHeight || window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    resizeHandler = resize;
+    window.addEventListener('resize', resizeHandler);
+
+    function tick() {
+      cloudParticles.forEach((p) => { p.rotation.z -= 0.002; });
+      rain.position.z -= 0.222;
+      if (rain.position.z < -200) rain.position.z = 0;
+      if (Math.random() > 0.93 || flash.power > 100) {
+        if (flash.power < 100) flash.position.set(Math.random() * 400, 300 + Math.random() * 200, 100);
+        flash.power = 50 + Math.random() * 500;
+      }
+      renderer.render(scene, camera);
+      animId = requestAnimationFrame(tick);
+    }
+    tick();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resizeHandler);
+      renderer.dispose();
+      rainGeo.dispose();
+      cloudGeo.dispose();
+      cloudMaterial.dispose();
+      cloudTex.dispose();
+      rainMaterial.dispose();
+    };
+  },
+};
+
+// ── February: With Love ─────────────────────────────────────────────────
+// Adapted from "with-love" — the floating heart-confetti and falling
+// heart-snow particle shaders are kept close to the original math. The
+// external GLB heart model, its matcap texture, the heart sprite PNG and
+// the ukulele.mp3 track (all hosted on assets.codepen.io, built around a
+// one-time "play music" button) don't fit a fixed, looping ambient
+// background — replaced with a procedural heart mesh and a canvas-drawn
+// heart sprite, no audio or manual controls.
+function makeHeartSpriteTexture() {
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  const top = size * 0.3;
+  ctx.moveTo(size / 2, top);
+  ctx.bezierCurveTo(size / 2, top - size * 0.3, size * 0.1, top - size * 0.05, size * 0.1, top + size * 0.05);
+  ctx.bezierCurveTo(size * 0.1, size * 0.55, size * 0.35, size * 0.75, size / 2, size * 0.92);
+  ctx.bezierCurveTo(size * 0.65, size * 0.75, size * 0.9, size * 0.55, size * 0.9, top + size * 0.05);
+  ctx.bezierCurveTo(size * 0.9, top - size * 0.05, size / 2, top - size * 0.3, size / 2, top);
+  ctx.closePath();
+  ctx.fill();
+  return c;
+}
+function heartShape2D(THREE) {
+  const s = new THREE.Shape();
+  s.moveTo(0.25, 0.25);
+  s.bezierCurveTo(0.25, 0.25, 0.2, 0, 0, 0);
+  s.bezierCurveTo(-0.3, 0, -0.3, 0.35, -0.3, 0.35);
+  s.bezierCurveTo(-0.3, 0.55, -0.1, 0.77, 0.25, 0.95);
+  s.bezierCurveTo(0.6, 0.77, 0.8, 0.55, 0.8, 0.35);
+  s.bezierCurveTo(0.8, 0.35, 0.8, 0, 0.5, 0);
+  s.bezierCurveTo(0.35, 0, 0.25, 0.25, 0.25, 0.25);
+  return s;
+}
+const FEB_VERT_CONFETTI = `
+  #define M_PI 3.1415926535897932384626433832795
+  uniform float uTime;
+  uniform float uSize;
+  attribute float aScale;
+  attribute vec3 aColor;
+  attribute float random;
+  attribute float random1;
+  attribute float aSpeed;
+  varying vec3 vColor;
+  varying vec2 vUv;
+  void main() {
+    float sign = 2.0 * (step(random, 0.5) - .5);
+    float t = sign * mod(-uTime * aSpeed * 0.005 + 10.0 * aSpeed * aSpeed, M_PI);
+    float a = pow(t, 2.0) * pow((t - sign * M_PI), 2.0);
+    float radius = 0.14;
+    vec3 myOffset = vec3(radius * 16.0 * pow(sin(t), 2.0) * sin(t), radius * (13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t)), .15 * (a * (random1 - .5)) * sin(abs(10.0 * (sin(.2 * uTime + .2 * random))) * t));
+    vec4 modelPosition = modelMatrix * vec4(myOffset, 1.0);
+    vec4 viewPosition = viewMatrix * modelPosition;
+    viewPosition.xyz += position * aScale * uSize * pow(a, .5) * .5;
+    gl_Position = projectionMatrix * viewPosition;
+    vColor = aColor;
+    vUv = uv;
+  }
+`;
+const FEB_FRAG_CONFETTI = `
+  varying vec3 vColor;
+  varying vec2 vUv;
+  void main() {
+    vec2 uv = vUv;
+    vec3 color = vColor;
+    float strength = distance(uv, vec2(0.5));
+    strength *= 2.0;
+    strength = 1.0 - strength;
+    gl_FragColor = vec4(strength * color, 1.0);
+  }
+`;
+const FEB_VERT_SNOW = `
+  #define M_PI 3.1415926535897932384626433832795
+  uniform float uTime;
+  uniform float uSize;
+  attribute float aScale;
+  attribute vec3 aColor;
+  attribute float phi;
+  attribute float random;
+  attribute float random1;
+  varying vec3 vColor;
+  varying vec2 vUv;
+  void main() {
+    float angle = phi;
+    float t = mod((-uTime + 100.0) * 0.06 * random1 + random * 2.0 * M_PI, 2.0 * M_PI);
+    vec3 myOffset = vec3(5.85 * cos(angle * t), 2.0 * (t - M_PI), 3.0 * sin(angle * t / t));
+    vec4 modelPosition = modelMatrix * vec4(myOffset, 1.0);
+    vec4 viewPosition = viewMatrix * modelPosition;
+    viewPosition.xyz += position * aScale * uSize;
+    gl_Position = projectionMatrix * viewPosition;
+    vColor = aColor;
+    vUv = uv;
+  }
+`;
+const FEB_FRAG_SNOW = `
+  uniform sampler2D uTex;
+  varying vec3 vColor;
+  varying vec2 vUv;
+  void main() {
+    vec2 uv = vUv;
+    vec3 color = vColor;
+    float strength = distance(uv, vec2(0.5, .65));
+    strength *= 2.0;
+    strength = 1.0 - strength;
+    vec3 tex = texture2D(uTex, uv).rgb;
+    gl_FragColor = vec4(tex * color * (strength + .3), 1.0);
+  }
+`;
+function makeInstancedSquares(THREE, count) {
+  const square = new THREE.PlaneGeometry(1, 1);
+  const geo = new THREE.InstancedBufferGeometry();
+  Object.keys(square.attributes).forEach((attr) => { geo.attributes[attr] = square.attributes[attr]; });
+  geo.index = square.index;
+  geo.instanceCount = count;
+  return geo;
+}
+SCENES.february = {
+  mount(container) {
+    if (typeof window.THREE === 'undefined') return () => {};
+    const THREE = window.THREE;
+    const canvas = fullCanvas(container);
+    let animId, resizeHandler;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x16000a);
+    const width = container.clientWidth || window.innerWidth;
+    const height = container.clientHeight || window.innerHeight;
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100);
+    camera.position.set(0, 0, 4.5);
+    scene.add(camera);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffb6c1, 0.8);
+    dirLight.position.set(1, 1, 2);
+    scene.add(dirLight);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(width, height);
+
+    const shape = heartShape2D(THREE);
+    const extrudeSettings = { depth: 0.25, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 4, curveSegments: 24 };
+    const heartGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    heartGeo.center();
+    heartGeo.rotateZ(Math.PI);
+    heartGeo.scale(0.9, 0.9, 0.9);
+    const heartMat = new THREE.MeshStandardMaterial({ color: 0xff89ac, roughness: 0.35, metalness: 0.15 });
+    const heartMesh = new THREE.Mesh(heartGeo, heartMat);
+    scene.add(heartMesh);
+
+    const confettiCount = 500;
+    const colorChoices = [0xffffff, 0xff0000, 0xffc0cb, 0xdc143c, 0xff69b4, 0x2e8b57];
+    const cScales = new Float32Array(confettiCount);
+    const cColors = new Float32Array(confettiCount * 3);
+    const cSpeeds = new Float32Array(confettiCount);
+    const cRandom = new Float32Array(confettiCount);
+    const cRandom1 = new Float32Array(confettiCount);
+    for (let i = 0; i < confettiCount; i++) {
+      cRandom[i] = Math.random();
+      cRandom1[i] = Math.random();
+      cScales[i] = Math.random() * 0.35;
+      const col = new THREE.Color(colorChoices[Math.floor(Math.random() * colorChoices.length)]);
+      cColors[i * 3] = col.r; cColors[i * 3 + 1] = col.g; cColors[i * 3 + 2] = col.b;
+      cSpeeds[i] = Math.random() * 12.5 * Math.PI;
+    }
+    const confettiGeo = makeInstancedSquares(THREE, confettiCount);
+    confettiGeo.setAttribute('random', new THREE.InstancedBufferAttribute(cRandom, 1));
+    confettiGeo.setAttribute('random1', new THREE.InstancedBufferAttribute(cRandom1, 1));
+    confettiGeo.setAttribute('aScale', new THREE.InstancedBufferAttribute(cScales, 1));
+    confettiGeo.setAttribute('aSpeed', new THREE.InstancedBufferAttribute(cSpeeds, 1));
+    confettiGeo.setAttribute('aColor', new THREE.InstancedBufferAttribute(cColors, 3));
+    const confettiMat = new THREE.ShaderMaterial({
+      vertexShader: FEB_VERT_CONFETTI, fragmentShader: FEB_FRAG_CONFETTI,
+      uniforms: { uTime: { value: 0 }, uSize: { value: 0.2 } },
+      depthWrite: false, blending: THREE.AdditiveBlending, transparent: true,
+    });
+    const confetti = new THREE.Mesh(confettiGeo, confettiMat);
+    scene.add(confetti);
+
+    const snowCount = 300;
+    const snowColorChoices = [0xff0000, 0xffc0cb, 0xff69b4, 0x2e8b57];
+    const sScales = new Float32Array(snowCount);
+    const sColors = new Float32Array(snowCount * 3);
+    const sPhi = new Float32Array(snowCount);
+    const sRandom = new Float32Array(snowCount);
+    const sRandom1 = new Float32Array(snowCount);
+    for (let i = 0; i < snowCount; i++) {
+      sPhi[i] = (Math.random() - 0.5) * 10;
+      sRandom[i] = Math.random();
+      sRandom1[i] = Math.random();
+      sScales[i] = Math.random() * 0.35;
+      const col = new THREE.Color(snowColorChoices[Math.floor(Math.random() * snowColorChoices.length)]);
+      sColors[i * 3] = col.r; sColors[i * 3 + 1] = col.g; sColors[i * 3 + 2] = col.b;
+    }
+    const snowGeo = makeInstancedSquares(THREE, snowCount);
+    snowGeo.setAttribute('phi', new THREE.InstancedBufferAttribute(sPhi, 1));
+    snowGeo.setAttribute('random', new THREE.InstancedBufferAttribute(sRandom, 1));
+    snowGeo.setAttribute('random1', new THREE.InstancedBufferAttribute(sRandom1, 1));
+    snowGeo.setAttribute('aScale', new THREE.InstancedBufferAttribute(sScales, 1));
+    snowGeo.setAttribute('aColor', new THREE.InstancedBufferAttribute(sColors, 3));
+    const snowTex = new THREE.CanvasTexture(makeHeartSpriteTexture());
+    const snowMat = new THREE.ShaderMaterial({
+      vertexShader: FEB_VERT_SNOW, fragmentShader: FEB_FRAG_SNOW,
+      uniforms: { uTime: { value: 0 }, uSize: { value: 0.3 }, uTex: { value: snowTex } },
+      depthWrite: false, blending: THREE.AdditiveBlending, transparent: true,
+    });
+    const snow = new THREE.Mesh(snowGeo, snowMat);
+    scene.add(snow);
+
+    function resize() {
+      const w = container.clientWidth || window.innerWidth;
+      const h = container.clientHeight || window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    resizeHandler = resize;
+    window.addEventListener('resize', resizeHandler);
+
+    const clock = new THREE.Clock();
+    function tick() {
+      const elapsed = clock.getElapsedTime();
+      confettiMat.uniforms.uTime.value = elapsed * 1000 * 0.0005;
+      snowMat.uniforms.uTime.value = elapsed * 1000 * 0.0004;
+      heartMesh.rotation.y += 0.004;
+      camera.position.x = Math.sin(elapsed * 0.15) * 0.6;
+      camera.position.y = Math.sin(elapsed * 0.1) * 0.2;
+      camera.lookAt(scene.position);
+      renderer.render(scene, camera);
+      animId = requestAnimationFrame(tick);
+    }
+    tick();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resizeHandler);
+      renderer.dispose();
+      heartGeo.dispose();
+      heartMat.dispose();
+      confettiGeo.dispose();
+      confettiMat.dispose();
+      snowGeo.dispose();
+      snowMat.dispose();
+      snowTex.dispose();
+    };
+  },
+};
+
+// ── December: Christmas ─────────────────────────────────────────────────
+// Adapted from "musical-christmas-lights" — same spiral-cone light-point
+// technique for the trees and the additive-blended sprite-point look for
+// the ground sparkle and falling snow. Dropped its audio-reactive core
+// (a FreeMusicArchive track list + file-upload button that drove point
+// size from live FFT data) and its EffectComposer/UnrealBloomPass pipeline
+// (a three.js addon module this app doesn't load) — trees pulse on a
+// simple time wave instead, and the additive blending on tightly-packed
+// glow sprites gives a comparable bloom look without the extra pass.
+// Every point sprite is generated on canvas instead of the external
+// assets.codepen.io PNGs.
+function makeGlowSpriteTexture() {
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return c;
+}
+function makeDecTreeGeometry(THREE, totalPoints) {
+  const TAU = Math.PI * 2;
+  const positions = [];
+  const colors = [];
+  const phases = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < totalPoints; i++) {
+    const t = Math.random();
+    const y = -8 + t * 18;
+    const ang = t * 6 * TAU + Math.PI * (i % 2);
+    const r = 5 * (1 - t);
+    const modifier = 1 - t;
+    const z = r * Math.cos(ang);
+    const x = r * Math.sin(ang);
+    positions.push(
+      x + rand(-0.3 * modifier, 0.3 * modifier),
+      y + rand(-0.3 * modifier, 0.3 * modifier),
+      z + rand(-0.3 * modifier, 0.3 * modifier)
+    );
+    color.setHSL(1 - i / totalPoints, 1.0, 0.5);
+    colors.push(color.r, color.g, color.b);
+    phases.push(rand(0, 1000));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('phase', new THREE.Float32BufferAttribute(phases, 1));
+  return geo;
+}
+const DEC_TREE_VERT = `
+  attribute float phase;
+  varying vec3 vColor;
+  varying float vOpacity;
+  uniform float uTime;
+  void main() {
+    vColor = color;
+    vec3 p = position;
+    vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+    float pulse = 0.6 + 0.4 * sin(uTime * 1.5 + phase);
+    float sizeMapped = mix(2.0, 9.0, pulse);
+    vOpacity = clamp((mvPosition.z + 200.0) / 215.0, 0.0, 1.0);
+    gl_PointSize = sizeMapped * (100.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+const DEC_FRAG = `
+  uniform sampler2D pointTexture;
+  varying vec3 vColor;
+  varying float vOpacity;
+  void main() {
+    gl_FragColor = vec4(vColor, vOpacity) * texture2D(pointTexture, gl_PointCoord);
+  }
+`;
+const DEC_SNOW_VERT = `
+  attribute float size;
+  attribute float phase;
+  attribute float phaseSecondary;
+  varying vec3 vColor;
+  varying float vOpacity;
+  uniform float uTime;
+  void main() {
+    vColor = color;
+    vec3 p = position;
+    float t = uTime * 0.6;
+    p.y = mod(phase - t, 33.0) - 8.0;
+    p.x += sin(t * 0.3 + phase);
+    p.z += sin(t * 0.3 + phaseSecondary);
+    vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+    vOpacity = clamp((mvPosition.z + 150.0) / 165.0, 0.0, 1.0);
+    gl_PointSize = size * (100.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+SCENES.december = {
+  mount(container) {
+    if (typeof window.THREE === 'undefined') return () => {};
+    const THREE = window.THREE;
+    const canvas = fullCanvas(container);
+    let animId, resizeHandler;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x02040c);
+    const width = container.clientWidth || window.innerWidth;
+    const height = container.clientHeight || window.innerHeight;
+    const camera = new THREE.PerspectiveCamera(60, width / height, 1, 1000);
+    camera.position.set(0, -1, 18);
+    camera.rotation.set(0.08, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(width, height);
+
+    const glowTex = new THREE.CanvasTexture(makeGlowSpriteTexture());
+    const uTimeUniform = { value: 0 };
+
+    const planeCount = 800;
+    const planePositions = [];
+    const planeColors = [];
+    const planeColorChoices = ['#93abd3', '#f2f4c0', '#9ddfd3'];
+    const pc = new THREE.Color();
+    for (let i = 0; i < planeCount; i++) {
+      planePositions.push(rand(-25, 25), 0, rand(-90, 15));
+      pc.set(planeColorChoices[Math.floor(Math.random() * planeColorChoices.length)]);
+      planeColors.push(pc.r, pc.g, pc.b);
+    }
+    const planeGeo = new THREE.BufferGeometry();
+    planeGeo.setAttribute('position', new THREE.Float32BufferAttribute(planePositions, 3));
+    planeGeo.setAttribute('color', new THREE.Float32BufferAttribute(planeColors, 3));
+    const planeMat = new THREE.PointsMaterial({ size: 1, map: glowTex, vertexColors: true, blending: THREE.AdditiveBlending, depthTest: false, transparent: true });
+    const plane = new THREE.Points(planeGeo, planeMat);
+    plane.position.y = -8;
+    scene.add(plane);
+
+    const treeGeos = [];
+    const treeMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: uTimeUniform, pointTexture: { value: glowTex } },
+      vertexShader: DEC_TREE_VERT, fragmentShader: DEC_FRAG,
+      blending: THREE.AdditiveBlending, depthTest: false, transparent: true, vertexColors: true,
+    });
+    const treePairs = 5;
+    for (let i = 0; i < treePairs; i++) {
+      [20, -20].forEach((xOff) => {
+        const geo = makeDecTreeGeometry(THREE, 900);
+        treeGeos.push(geo);
+        const tree = new THREE.Points(geo, treeMat);
+        tree.position.set(xOff, 0, -18 * i);
+        scene.add(tree);
+      });
+    }
+
+    const snowGeos = [];
+    const snowMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: uTimeUniform, pointTexture: { value: glowTex } },
+      vertexShader: DEC_SNOW_VERT, fragmentShader: DEC_FRAG,
+      blending: THREE.AdditiveBlending, depthTest: false, transparent: true, vertexColors: true,
+    });
+    const snowColorChoices = ['#f1d4d4', '#f1f6f9', '#eeeeee', '#f1f1e8'];
+    for (let s = 0; s < 3; s++) {
+      const total = 250;
+      const positions = [];
+      const colors = [];
+      const sizes = [];
+      const phases = [];
+      const phase2 = [];
+      const sc = new THREE.Color();
+      for (let i = 0; i < total; i++) {
+        positions.push(rand(-25, 25), rand(-8, 25), rand(-90, 15));
+        sc.set(snowColorChoices[Math.floor(Math.random() * snowColorChoices.length)]);
+        colors.push(sc.r, sc.g, sc.b);
+        sizes.push(rand(2, 4));
+        phases.push(rand(0, 33));
+        phase2.push(rand(0, 1000));
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+      geo.setAttribute('phase', new THREE.Float32BufferAttribute(phases, 1));
+      geo.setAttribute('phaseSecondary', new THREE.Float32BufferAttribute(phase2, 1));
+      snowGeos.push(geo);
+      scene.add(new THREE.Points(geo, snowMat));
+    }
+
+    function resize() {
+      const w = container.clientWidth || window.innerWidth;
+      const h = container.clientHeight || window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    resizeHandler = resize;
+    window.addEventListener('resize', resizeHandler);
+
+    const clock = new THREE.Clock();
+    function tick() {
+      uTimeUniform.value = clock.getElapsedTime();
+      camera.position.x = Math.sin(uTimeUniform.value * 0.05) * 2;
+      renderer.render(scene, camera);
+      animId = requestAnimationFrame(tick);
+    }
+    tick();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resizeHandler);
+      renderer.dispose();
+      glowTex.dispose();
+      planeGeo.dispose();
+      planeMat.dispose();
+      treeGeos.forEach((g) => g.dispose());
+      treeMat.dispose();
+      snowGeos.forEach((g) => g.dispose());
+      snowMat.dispose();
+    };
+  },
+};
