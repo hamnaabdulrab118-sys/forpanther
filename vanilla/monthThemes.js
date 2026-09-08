@@ -96,3 +96,104 @@ SCENES.january = {
     };
   },
 };
+
+// Loads a pre-built pen's own style.css + scene.html (copied verbatim into
+// vanilla/themes/<key>/) inside a Shadow DOM, so its own class names (and
+// any `body { ... }` rule it assumes it owns) can never collide with or leak
+// into the rest of the app. `entranceClass`, if given, starts on the wrapper
+// and is removed after `entranceDelay`ms to trigger a load-in animation that
+// the pen gates behind that class (mirroring what its own script.js did to
+// `document.body`).
+function mountStaticPen(key, wrapperStyle, { entranceClass, entranceDelay = 300 } = {}) {
+  return function mount(container) {
+    let aborted = false;
+    let timeoutId = null;
+    const shadow = container.attachShadow({ mode: 'open' });
+    Promise.all([
+      fetch(`themes/${key}/style.css`).then(r => r.text()),
+      fetch(`themes/${key}/scene.html`).then(r => r.text()),
+    ]).then(([css, html]) => {
+      if (aborted) return;
+      const styleEl = document.createElement('style');
+      styleEl.textContent = css;
+      const wrap = document.createElement('div');
+      if (entranceClass) wrap.className = entranceClass;
+      wrap.style.cssText = wrapperStyle;
+      wrap.innerHTML = html;
+      shadow.appendChild(styleEl);
+      shadow.appendChild(wrap);
+      if (entranceClass) {
+        timeoutId = setTimeout(() => { if (!aborted) wrap.classList.remove(entranceClass); }, entranceDelay);
+      }
+    }).catch(e => console.error(`❌ Month scene "${key}" failed to load:`, e));
+    return () => {
+      aborted = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  };
+}
+
+// ── March: Blossoming flowers at night ──────────────────────────────────
+SCENES.march = {
+  mount: mountStaticPen(
+    'march',
+    'display:flex;align-items:flex-end;justify-content:center;width:100%;height:100%;background:#000;overflow:hidden;perspective:1000px;position:absolute;inset:0;',
+    { entranceClass: 'not-loaded', entranceDelay: 300 }
+  ),
+};
+
+// ── September: Dinosaur hatching from an egg ────────────────────────────
+SCENES.september = {
+  mount: mountStaticPen(
+    'september',
+    'position:absolute;inset:0;background:linear-gradient(180deg,#1a0d02 0%,#3d2008 45%,#5c3010 100%);overflow:hidden;'
+  ),
+};
+
+// ── April: Clouds ────────────────────────────────────────────────────────
+// Adapted from "cloud-generator" — kept the SVG feTurbulence-filtered cloud
+// shape, dropped the drag/resize/weather-slider interactivity (this is an
+// ambient background, not a toy) and added a slow drift animation instead.
+SCENES.april = {
+  mount(container) {
+    const shadow = container.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = `
+      .wrap { position:absolute; inset:0; overflow:hidden; background:linear-gradient(0deg,#62a0d8 0%,#2178d1 50%,#085cb3 100%); }
+      svg.deffilter { width:0; height:0; position:absolute; }
+      .cloud-container { position:absolute; inset:0; filter:url(#april-cloud-filter); }
+      .cloud { width:680px; height:280px; background:#fff; border-radius:50%; position:absolute; top:45%; left:50%; transform:translate(-50%,-50%); animation:driftA 40s ease-in-out infinite alternate; }
+      .cloud2 { width:420px; height:180px; top:65%; left:25%; animation:driftB 55s ease-in-out infinite alternate; opacity:0.85; }
+      @keyframes driftA { from { transform:translate(-54%,-50%); } to { transform:translate(-46%,-52%); } }
+      @keyframes driftB { from { transform:translate(-50%,-48%); } to { transform:translate(-46%,-52%); } }
+    `;
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    wrap.innerHTML = `
+      <svg class="deffilter" xmlns="http://www.w3.org/2000/svg">
+        <filter id="april-cloud-filter" x="-50%" y="-50%" width="200%" height="200%" style="color-interpolation-filters:sRGB">
+          <feTurbulence type="fractalNoise" seed="462" baseFrequency="0.011" numOctaves="5" result="noise1" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="20" />
+          <feDisplacementMap in="blur1" scale="100" in2="noise1" result="cloud1" />
+          <feFlood flood-color="rgb(215,215,215)" flood-opacity="0.2" />
+          <feComposite operator="in" in2="SourceGraphic" />
+          <feOffset dx="-10" dy="-3" />
+          <feMorphology radius="20" />
+          <feGaussianBlur stdDeviation="20" />
+          <feDisplacementMap scale="100" in2="noise1" result="cloud2" />
+          <feMerge>
+            <feMergeNode in="cloud1" />
+            <feMergeNode in="cloud2" />
+          </feMerge>
+        </filter>
+      </svg>
+      <div class="cloud-container">
+        <div class="cloud"></div>
+        <div class="cloud cloud2"></div>
+      </div>
+    `;
+    shadow.appendChild(style);
+    shadow.appendChild(wrap);
+    return () => {};
+  },
+};
