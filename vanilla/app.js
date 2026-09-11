@@ -480,7 +480,7 @@ const state = {
   openLetterId: null,
   newPhoto: { url: '', caption: '', location: '' },
   lightbox: null, // { idx }
-  moonEditor: { dinoDraft: '', moonDraft: '', editingId: null, editingText: '' },
+  moonEditor: { dinoDraft: '', moonDraft: '', editingId: null, editingText: '', openPicker: null },
   bouquetForm: { note: '', bgUrl: '' },
   mixtapeStep: 1,
   mixtapeForm: { label: '', note: '', songTitle: '', songArtist: '' },
@@ -1170,20 +1170,42 @@ function moonHeaderHTML(title, subtitle, moonDay, effectId) {
   const glowSize = 30 + illum * 30;
   return `
     ${moonSkyHTML(effectId)}
-    <div style="position:absolute;top:20px;right:20px;width:72px;height:72px;pointer-events:none;z-index:2;filter:drop-shadow(0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35}));">
-      <!-- Always-visible 2D fallback (pure SVG, no WebGL/network dependency) sits
-           underneath the 3D canvas — if Three.js fails to load or WebGL isn't
-           available on the device, the moon still shows instead of a blank spot. -->
-      <div style="position:absolute;inset:0;">${moonPhaseSVG(moonDay, 72, 'headericon')}</div>
-      <canvas id="moon-3d-icon" width="72" height="72" style="position:absolute;inset:0;width:72px;height:72px;display:block;"></canvas>
-    </div>
-    <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
-      <div>
+    <div class="glass" style="position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div style="min-width:0;flex:1;">
         <h2 class="font-serif" style="font-size:22px;font-weight:700;color:#ffddb0;">${esc(title)}</h2>
         <p class="font-mono" style="font-size:10px;color:rgba(254,249,195,0.6);margin-top:1px;">${label} · ${esc(effect.label)}</p>
         <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">${esc(subtitle)}</p>
       </div>
-      <button data-action="moon-close" style="width:36px;height:36px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#b2c8ed;">✕</button>
+      <!-- A normal flex item now, not absolutely positioned over the header —
+           it used to sit *behind* this panel's opaque/blurred glass background
+           (painted after it, at a higher z-index) which hid it completely.
+           Living inside the row like the title and close button guarantees
+           it's always visible and never overlaps them, at any screen width.
+           The always-visible 2D SVG fallback sits underneath the 3D canvas —
+           if Three.js fails to load or WebGL isn't available, the moon still
+           shows instead of a blank spot. -->
+      <div style="position:relative;width:56px;height:56px;flex-shrink:0;filter:drop-shadow(0 0 ${glowSize}px rgba(254,249,195,${0.3 + illum * 0.35}));">
+        <div style="position:absolute;inset:0;">${moonPhaseSVG(moonDay, 56, 'headericon')}</div>
+        <canvas id="moon-3d-icon" width="56" height="56" style="position:absolute;inset:0;width:56px;height:56px;display:block;"></canvas>
+      </div>
+      <button data-action="moon-close" style="width:36px;height:36px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#b2c8ed;flex-shrink:0;">✕</button>
+    </div>`;
+}
+
+function pickerDropdownHTML(pickerKey, label, previewHTML, currentLabel, isOpen, optionsHTML) {
+  return `
+    <div>
+      <button data-action="moon-toggle-picker" data-picker="${pickerKey}" class="font-mono"
+        style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:10px;
+        background:rgba(178,200,237,0.06);border:1px solid ${isOpen ? 'rgba(233,195,73,0.35)' : 'rgba(178,200,237,0.12)'};cursor:pointer;">
+        <span style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <span style="font-size:9px;color:rgba(178,200,237,0.45);text-transform:uppercase;letter-spacing:0.08em;flex-shrink:0;">${esc(label)}</span>
+          <span style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">${previewHTML}</span>
+          <span style="font-size:11px;color:#eef4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(currentLabel)}</span>
+        </span>
+        <span style="font-size:9px;color:rgba(178,200,237,0.4);flex-shrink:0;transform:rotate(${isOpen ? '180deg' : '0deg'});transition:transform 0.15s;">▼</span>
+      </button>
+      ${isOpen ? `<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 2px 4px;">${optionsHTML}</div>` : ''}
     </div>`;
 }
 
@@ -1193,38 +1215,29 @@ function moonScriptEditorHTML() {
   const effectId = state.owner.data.skyEffectId;
   const colorId = state.owner.data.skyColorId;
   const sky = skyColor(colorId).css;
+  const openPicker = state.moonEditor.openPicker;
+  const effect = skyEffect(effectId);
+  const color = skyColor(colorId);
   return `
   <div style="min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden;background:${sky};">
     ${moonHeaderHTML('Talk to the Moon — Script Editor', 'Write both sides — Panther just reads it ✨', moonDay, effectId)}
-    <div class="glass" style="position:relative;z-index:10;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:10px;">
-      <div>
-        <p class="font-mono" style="font-size:9px;color:rgba(178,200,237,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Moon phase (1-30)</p>
-        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
-          ${MOON_PHASE_DAYS.map(d => `
-            <button data-action="pick-moon-day" data-day="${d}" title="Day ${d} — ${moonPhaseInfo(d).label}"
-              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${d === moonDay ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
-              ${moonPhaseSVG(d, 22, `pick-${d}`)}
-            </button>`).join('')}
-        </div>
-      </div>
-      <div>
-        <p class="font-mono" style="font-size:9px;color:rgba(178,200,237,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Star mood (1-30)</p>
-        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
-          ${SKY_EFFECTS.map((e, i) => `
-            <button data-action="pick-sky-effect" data-effect="${i + 1}" title="${esc(e.label)}"
-              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === effectId ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:#0a1220;font-size:13px;display:flex;align-items:center;justify-content:center;">
-              ${e.icon}
-            </button>`).join('')}
-        </div>
-      </div>
-      <div>
-        <p class="font-mono" style="font-size:9px;color:rgba(178,200,237,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Sky color (1-30)</p>
-        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
-          ${SKY_COLORS.map((c, i) => `
-            <button data-action="pick-sky-color" data-color="${i + 1}" title="${esc(c.label)}"
-              style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === colorId ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:${c.css};padding:0;"></button>`).join('')}
-        </div>
-      </div>
+    <div class="glass" style="position:relative;z-index:10;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:8px;">
+      ${pickerDropdownHTML('phase', 'Moon phase', moonPhaseSVG(moonDay, 20, 'dd-phase'), moonPhaseInfo(moonDay).label, openPicker === 'phase',
+        MOON_PHASE_DAYS.map(d => `
+          <button data-action="pick-moon-day" data-day="${d}" title="Day ${d} — ${moonPhaseInfo(d).label}"
+            style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${d === moonDay ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:#0a1220;padding:0;display:flex;align-items:center;justify-content:center;">
+            ${moonPhaseSVG(d, 22, `pick-${d}`)}
+          </button>`).join(''))}
+      ${pickerDropdownHTML('effect', 'Star mood', `<span style="font-size:13px;">${effect.icon}</span>`, effect.label, openPicker === 'effect',
+        SKY_EFFECTS.map((e, i) => `
+          <button data-action="pick-sky-effect" data-effect="${i + 1}" title="${esc(e.label)}"
+            style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === effectId ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:#0a1220;font-size:13px;display:flex;align-items:center;justify-content:center;">
+            ${e.icon}
+          </button>`).join(''))}
+      ${pickerDropdownHTML('color', 'Sky color', `<span style="width:14px;height:14px;border-radius:50%;background:${color.css};display:block;"></span>`, color.label, openPicker === 'color',
+        SKY_COLORS.map((c, i) => `
+          <button data-action="pick-sky-color" data-color="${i + 1}" title="${esc(c.label)}"
+            style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:${i + 1 === colorId ? '2px solid #e9c349' : '2px solid transparent'};cursor:pointer;background:${c.css};padding:0;"></button>`).join(''))}
     </div>
     <div id="moon-messages" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:10;">
       ${messages.length === 0 ? `<p class="font-mono" style="text-align:center;color:rgba(178,200,237,0.3);font-size:13px;margin-top:40px;">No lines yet — add the first one below</p>` : ''}
@@ -2616,12 +2629,15 @@ async function pickTheme(id) {
   await persist({ ...state.owner.data, theme: id });
 }
 async function pickMoonDay(day) {
+  state.moonEditor.openPicker = null;
   await persist({ ...state.owner.data, moonPhaseDay: day });
 }
 async function pickSkyEffect(id) {
+  state.moonEditor.openPicker = null;
   await persist({ ...state.owner.data, skyEffectId: id });
 }
 async function pickSkyColor(id) {
+  state.moonEditor.openPicker = null;
   await persist({ ...state.owner.data, skyColorId: id });
 }
 async function addBouquetFlower(id) {
@@ -2851,6 +2867,10 @@ function handleClick(e) {
     case 'update-cities': updateCities(); break;
     case 'save-recipient-pin': saveRecipientPin(); break;
     case 'pick-theme': pickTheme(el.dataset.theme); break;
+    case 'moon-toggle-picker':
+      state.moonEditor.openPicker = state.moonEditor.openPicker === el.dataset.picker ? null : el.dataset.picker;
+      render();
+      break;
     case 'pick-moon-day': pickMoonDay(Number(el.dataset.day)); break;
     case 'pick-sky-effect': pickSkyEffect(Number(el.dataset.effect)); break;
     case 'pick-sky-color': pickSkyColor(Number(el.dataset.color)); break;
