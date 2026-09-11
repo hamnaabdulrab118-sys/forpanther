@@ -2999,7 +2999,7 @@ function handleChange(e) {
       })
       .catch(err => {
         console.error('❌ Music upload error:', err);
-        window.alert('Music upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+        window.alert('Music upload failed: ' + (err && err.message ? err.message : 'check that Firebase Storage is enabled and its rules allow writes.'));
       })
       .finally(() => {
         state.editor.musicUploading = false;
@@ -3026,7 +3026,7 @@ function handleChange(e) {
       })
       .catch(err => {
         console.error('❌ Mixtape song upload error:', err);
-        window.alert('Song upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+        window.alert('Song upload failed: ' + (err && err.message ? err.message : 'check that Firebase Storage is enabled and its rules allow writes.'));
       })
       .finally(() => {
         state.mixtapeUploading = false;
@@ -3041,7 +3041,7 @@ function handleChange(e) {
       .then(url => { state.newPhoto.url = url; })
       .catch(err => {
         console.error('❌ Gallery photo upload error:', err);
-        window.alert('Photo upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+        window.alert('Photo upload failed: ' + (err && err.message ? err.message : 'check that Firebase Storage is enabled and its rules allow writes.'));
       })
       .finally(() => {
         state.galleryUploading = false;
@@ -3059,7 +3059,7 @@ function handleChange(e) {
       })
       .catch(err => {
         console.error('❌ Memory photo upload error:', err);
-        window.alert('Photo upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+        window.alert('Photo upload failed: ' + (err && err.message ? err.message : 'check that Firebase Storage is enabled and its rules allow writes.'));
       })
       .finally(() => {
         state.memoryMapUploading = false;
@@ -3077,7 +3077,7 @@ function handleChange(e) {
       })
       .catch(err => {
         console.error('❌ Memory voice upload error:', err);
-        window.alert('Voice note upload failed — check that Firebase Storage is enabled and its rules allow writes.');
+        window.alert('Voice note upload failed: ' + (err && err.message ? err.message : 'check that Firebase Storage is enabled and its rules allow writes.'));
       })
       .finally(() => {
         state.memoryMapUploading = false;
