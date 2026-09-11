@@ -2055,44 +2055,61 @@ function buildCollectionEntries(data) {
     if (l.hasVideo) extras.push('🎬 video');
     if (l.hasMusic) extras.push('🎵 music');
     if (l.hasAudio) extras.push('🎙️ voice');
+    const media = [];
+    if (l.hasPhoto && l.photoUrl) media.push({ type: 'image', url: l.photoUrl });
+    if (l.hasMusic && l.musicUrl) media.push({ type: 'audio', url: l.musicUrl });
     entries.push({
       kind: 'letter', id: l.id,
       icon: '✉️', title: l.title || l.label || 'A letter',
-      sub: extras.join(' · ') || null,
+      sub: extras.join(' · ') || null, media,
       date: l.date || formatEntryDate(l.createdAt), ts: l.createdAt || 0,
     });
   });
   (data.gallery || []).forEach(p => entries.push({
     kind: 'photo', id: p.id,
     icon: '📷', title: p.caption || 'A photo', sub: p.location || null,
+    media: [{ type: 'image', url: p.url }],
     date: p.date || formatEntryDate(p.createdAt), ts: p.createdAt || 0,
   }));
   (data.moonMessages || []).forEach(m => entries.push({
     kind: 'moon', id: m.id,
     icon: '🌙', title: m.text.length > 70 ? m.text.slice(0, 70) + '…' : m.text,
-    sub: m.from === 'dino' ? 'You, to Panther' : "Moon's reply",
+    sub: m.from === 'dino' ? 'You, to Panther' : "Moon's reply", media: [],
     date: formatEntryDate(m.createdAt), ts: m.createdAt || 0,
   }));
   ((data.mixtape && data.mixtape.songs) || []).forEach(s => entries.push({
     kind: 'song', id: s.id,
     icon: '🎵', title: s.title || 'Untitled song', sub: s.artist || null,
+    media: [{ type: 'audio', url: s.url }],
     date: formatEntryDate(s.addedAt), ts: s.addedAt || 0,
   }));
-  ((data.memoryMap && data.memoryMap.pins) || []).forEach(pn => entries.push({
-    kind: 'pin', id: pn.id,
-    icon: '📍', title: pn.title || 'A memory',
-    sub: pn.note ? (pn.note.length > 60 ? pn.note.slice(0, 60) + '…' : pn.note) : null,
-    date: pn.date || formatEntryDate(pn.createdAt), ts: pn.createdAt || 0,
-  }));
+  ((data.memoryMap && data.memoryMap.pins) || []).forEach(pn => {
+    const media = [];
+    if (pn.photoUrl) media.push({ type: 'image', url: pn.photoUrl });
+    if (pn.voiceUrl) media.push({ type: 'audio', url: pn.voiceUrl });
+    entries.push({
+      kind: 'pin', id: pn.id,
+      icon: '📍', title: pn.title || 'A memory',
+      sub: pn.note ? (pn.note.length > 60 ? pn.note.slice(0, 60) + '…' : pn.note) : null, media,
+      date: pn.date || formatEntryDate(pn.createdAt), ts: pn.createdAt || 0,
+    });
+  });
   if (data.bouquet && data.bouquet.flowers && data.bouquet.flowers.length) {
     entries.push({
       kind: 'bouquet', id: 'bouquet',
-      icon: '💐', title: `Bouquet · ${data.bouquet.flowers.length} blooms`, sub: data.bouquet.note || null,
+      icon: '💐', title: `Bouquet · ${data.bouquet.flowers.length} blooms`, sub: data.bouquet.note || null, media: [],
       date: formatEntryDate(data.bouquet.updatedAt), ts: data.bouquet.updatedAt || 0,
     });
   }
   entries.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
   return entries;
+}
+function collectionMediaHTML(media) {
+  if (!media || !media.length) return '';
+  return media.map(m => m.type === 'image'
+    ? `<img src="${esc(m.url)}" alt="" ${IMG_ERROR_ATTR} style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-top:10px;display:block;" />`
+    : `<audio controls src="${esc(m.url)}" style="width:100%;height:32px;margin-top:10px;display:block;"></audio>`
+  ).join('');
 }
 async function deleteCollectionEntry(kind, id) {
   if (kind === 'letter') return deleteLetter(id);
@@ -2121,14 +2138,17 @@ function collectionHTML() {
       ${entries.length ? `
         <div style="display:flex;flex-direction:column;">
           ${entries.map((e, i) => `
-            <div class="glass-gold" style="border-radius:18px;padding:16px 18px;display:flex;align-items:flex-start;gap:14px;margin-bottom:10px;animation:slideUp 0.3s ${Math.min(i * 0.03, 0.6)}s ease-out both;">
-              <div style="font-size:24px;flex-shrink:0;line-height:1;">${e.icon}</div>
-              <div style="flex:1;min-width:0;">
-                <p class="font-serif" style="font-size:15px;color:#eef4ff;font-weight:600;">${esc(e.title)}</p>
-                ${e.sub ? `<p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.55);margin-top:3px;">${esc(e.sub)}</p>` : ''}
+            <div class="glass-gold" style="border-radius:18px;padding:16px 18px;margin-bottom:10px;animation:slideUp 0.3s ${Math.min(i * 0.03, 0.6)}s ease-out both;">
+              <div style="display:flex;align-items:flex-start;gap:14px;">
+                <div style="font-size:24px;flex-shrink:0;line-height:1;">${e.icon}</div>
+                <div style="flex:1;min-width:0;">
+                  <p class="font-serif" style="font-size:15px;color:#eef4ff;font-weight:600;">${esc(e.title)}</p>
+                  ${e.sub ? `<p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.55);margin-top:3px;">${esc(e.sub)}</p>` : ''}
+                </div>
+                ${e.date ? `<p class="font-mono" style="font-size:10px;color:var(--accent);white-space:nowrap;flex-shrink:0;">${esc(e.date)}</p>` : ''}
+                ${isOwnerView ? `<button data-action="collection-delete-entry" data-kind="${e.kind}" data-id="${esc(e.id)}" title="Delete" style="width:26px;height:26px;border-radius:50%;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#f87171;cursor:pointer;flex-shrink:0;font-size:12px;display:flex;align-items:center;justify-content:center;">🗑</button>` : ''}
               </div>
-              ${e.date ? `<p class="font-mono" style="font-size:10px;color:var(--accent);white-space:nowrap;flex-shrink:0;">${esc(e.date)}</p>` : ''}
-              ${isOwnerView ? `<button data-action="collection-delete-entry" data-kind="${e.kind}" data-id="${esc(e.id)}" title="Delete" style="width:26px;height:26px;border-radius:50%;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#f87171;cursor:pointer;flex-shrink:0;font-size:12px;display:flex;align-items:center;justify-content:center;">🗑</button>` : ''}
+              ${collectionMediaHTML(e.media)}
             </div>`).join('')}
         </div>` : emptyStateHTML('Nothing sent yet — start with a letter, a photo, or a song.', '📚')}
     </div>
@@ -2524,10 +2544,17 @@ function ownerStudioHTML() {
 }
 
 // ── Data actions ─────────────────────────────────────────────────────────
+// The owner's screen updates optimistically (from local state) before the
+// Firestore write even starts, so a silent save failure would otherwise
+// look identical to success on this screen — Panther just never gets it.
+// Checking the result here makes that impossible to miss.
 async function persist(newData) {
   state.owner.data = newData;
   render();
-  await saveData(newData);
+  const ok = await saveData(newData);
+  if (!ok) {
+    window.alert("⚠️ This didn't save — Panther won't see it yet. Check your internet connection and try again (and re-check whatever you just changed).");
+  }
 }
 
 function openEditor(letter) {
