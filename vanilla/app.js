@@ -2135,17 +2135,20 @@ function voiceNotePostcardHTML(note, editable) {
     </div>
   </div>`;
 }
-function voiceNoteCardThumbHTML(note) {
+function voiceNoteCardThumbHTML(note, editable) {
   const cover = note.photos && note.photos[0];
   return `
-    <button data-action="voicenote-open" data-id="${esc(note.id)}" class="font-mono" style="text-align:left;border:none;cursor:pointer;padding:0;border-radius:20px;overflow:hidden;background:rgba(0,13,32,0.5);position:relative;aspect-ratio:1/1;">
-      ${cover ? `<img src="${esc(cover)}" ${IMG_ERROR_ATTR} style="width:100%;height:100%;object-fit:cover;display:block;" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;">🎙️</div>`}
-      <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(0,8,20,0.85) 100%);"></div>
-      <div style="position:absolute;left:10px;right:10px;bottom:8px;">
-        <p style="font-size:12px;color:white;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(note.title || 'A voice note')}</p>
-        ${note.photos && note.photos.length > 1 ? `<p style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:1px;">${note.photos.length} photos</p>` : ''}
-      </div>
-    </button>`;
+    <div style="position:relative;border-radius:20px;overflow:hidden;aspect-ratio:1/1;">
+      <button data-action="voicenote-open" data-id="${esc(note.id)}" class="font-mono" style="text-align:left;border:none;cursor:pointer;padding:0;display:block;width:100%;height:100%;background:rgba(0,13,32,0.5);position:relative;">
+        ${cover ? `<img src="${esc(cover)}" ${IMG_ERROR_ATTR} style="width:100%;height:100%;object-fit:cover;display:block;" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;">🎙️</div>`}
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(0,8,20,0.85) 100%);"></div>
+        <div style="position:absolute;left:10px;right:${editable ? '34' : '10'}px;bottom:8px;">
+          <p style="font-size:12px;color:white;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(note.title || 'A voice note')}</p>
+          ${note.photos && note.photos.length > 1 ? `<p style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:1px;">${note.photos.length} photos</p>` : ''}
+        </div>
+      </button>
+      ${editable ? `<button data-action="voicenote-delete" data-id="${esc(note.id)}" title="Delete this voice note" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:#f87171;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;">🗑</button>` : ''}
+    </div>`;
 }
 function voiceNoteBuilderHTML() {
   const data = state.owner.data;
@@ -2191,7 +2194,7 @@ function voiceNoteBuilderHTML() {
       </div>
 
       ${notes.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        ${notes.slice().reverse().map(voiceNoteCardThumbHTML).join('')}
+        ${notes.slice().reverse().map(n => voiceNoteCardThumbHTML(n, true)).join('')}
       </div>` : emptyStateHTML('No voice notes yet — add photos and a recording above', '🎙️')}
     </div>
   </div>${viewing ? voiceNotePostcardHTML(viewing, true) : ''}`;
@@ -2213,7 +2216,7 @@ function voiceNoteListViewHTML() {
         <button data-action="voicenotes-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
       </div>
       ${notes.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding-bottom:90px;">
-        ${notes.slice().reverse().map(voiceNoteCardThumbHTML).join('')}
+        ${notes.slice().reverse().map(n => voiceNoteCardThumbHTML(n, false)).join('')}
       </div>` : emptyStateHTML('No voice notes yet...', '🎙️')}
     </div>
     ${viewing ? voiceNotePostcardHTML(viewing, false) : ''}
