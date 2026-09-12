@@ -5,7 +5,7 @@
 //   Share URL   → yoursite.com/?gift=main
 //   Panther opens URL → app reads "main" from Firestore → shows letters
 // ═══════════════════════════════════════════════════════════════════════
-import { loadData, saveData, signInOwner, uploadMusicFile, uploadMixtapeSong, uploadMemoryFile, uploadGalleryPhoto } from './db.js';
+import { loadData, saveData, signInOwner, uploadMusicFile, uploadMixtapeSong, uploadMemoryFile, uploadGalleryPhoto, uploadVoiceNotePhoto, uploadVoiceNoteAudio } from './db.js';
 import { mountMoonIcon, unmountMoonIcon, mountMoonSky, unmountMoonSky } from './moon3d.js';
 import { hasScene, mountMonthScene, unmountMonthScene } from './monthThemes.js';
 
@@ -19,10 +19,11 @@ const DEFAULT_DATA = {
   distanceKm: 730, distanceMiles: 454,
   isPublished: false,
   moonMessages: [],
-  hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false, mixtape: false, memorymap: false, collection: false },
+  hiddenTabs: { letters: false, gallery: false, moon: false, bouquet: false, mixtape: false, memorymap: false, voicenotes: false, collection: false },
   bouquet: { flowers: [], wrapping: 'gold', note: '', background: { type: 'preset', value: 'night' } },
   mixtape: { color: 'sage', label: 'Songs for you', songs: [], note: '' },
   memoryMap: { pins: [] },
+  voiceNotes: [],
   theme: 'classic',
   recipientPin: '1122', // separate from OWNER_PIN — this is the code Dino shares with Panther
   moonPhaseDay: 15, // 1-30, moon shape only (1=new moon, 15=full moon)
@@ -252,6 +253,7 @@ const OWNER_TABS = [
   { id: 'home', icon: '🏠', label: 'Home' },
   { id: 'letters', icon: '✉️', label: 'Letters' },
   { id: 'gallery', icon: '🖼️', label: 'Gallery' },
+  { id: 'voicenotes', icon: '🎙️', label: 'Voice' },
   { id: 'bouquet', icon: '💐', label: 'Bouquet' },
   { id: 'mixtape', icon: '📻', label: 'Mixtape' },
   { id: 'memorymap', icon: '🗺️', label: 'Map' },
@@ -303,6 +305,7 @@ function normalizeData(d) {
     bouquet: { ...DEFAULT_DATA.bouquet, ...(d.bouquet || {}), flowers: (d.bouquet && d.bouquet.flowers) || [] },
     mixtape: { ...DEFAULT_DATA.mixtape, ...(d.mixtape || {}), songs: (d.mixtape && d.mixtape.songs) || [] },
     memoryMap: { ...DEFAULT_DATA.memoryMap, ...(d.memoryMap || {}), pins: (d.memoryMap && d.memoryMap.pins) || [] },
+    voiceNotes: d.voiceNotes || [],
   };
 }
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -359,7 +362,7 @@ function requestLiveLocation() {
 // excluded here: it's always reachable separately as the "see everything"
 // escape hatch, not one more stop to click past.
 function visibleRecipientTabs(data) {
-  return ['letters', 'gallery', 'bouquet', 'mixtape', 'memorymap', 'moon'].filter(t => !data.hiddenTabs[t]);
+  return ['letters', 'gallery', 'voicenotes', 'bouquet', 'mixtape', 'memorymap', 'moon'].filter(t => !data.hiddenTabs[t]);
 }
 function firstVisibleRecipientTab(data) {
   return visibleRecipientTabs(data)[0] || 'letters';
@@ -490,6 +493,11 @@ const state = {
   memoryMapUploading: false,
   recipientPinForm: { pin: '' },
   galleryUploading: false,
+  voiceNoteDraft: { title: '', photos: [], audioUrl: '' },
+  voiceNotePhotoUploading: false,
+  voiceNoteAudioUploading: false,
+  voiceNoteViewingId: null,
+  voiceNotePlayer: { playing: false, photoIndex: 0 },
 };
 
 const root = document.getElementById('root');
@@ -504,6 +512,7 @@ function computeView() {
     if (state.recipient.tab === 'bouquet') return 'bouquet';
     if (state.recipient.tab === 'mixtape') return 'mixtape';
     if (state.recipient.tab === 'memorymap') return 'memorymap';
+    if (state.recipient.tab === 'voicenotes') return 'voicenotes';
     if (state.recipient.tab === 'collection') return 'collection';
     return 'recipient';
   }
@@ -512,6 +521,7 @@ function computeView() {
   if (state.owner.tab === 'bouquet') return 'bouquet';
   if (state.owner.tab === 'mixtape') return 'mixtape';
   if (state.owner.tab === 'memorymap') return 'memorymap';
+  if (state.owner.tab === 'voicenotes') return 'voicenotes';
   if (state.owner.tab === 'collection') return 'collection';
   if (state.editingLetter !== undefined) return 'editor';
   return 'owner';
@@ -530,6 +540,7 @@ function render() {
     case 'bouquet': html = (state.isRecipient && state.recipient.data) ? bouquetViewHTML() : bouquetBuilderHTML(); break;
     case 'mixtape': html = (state.isRecipient && state.recipient.data) ? mixtapeViewHTML() : mixtapeBuilderHTML(); break;
     case 'memorymap': html = (state.isRecipient && state.recipient.data) ? memoryMapViewHTML() : memoryMapBuilderHTML(); break;
+    case 'voicenotes': html = (state.isRecipient && state.recipient.data) ? voiceNoteListViewHTML() : voiceNoteBuilderHTML(); break;
     case 'collection': html = collectionHTML(); break;
     case 'editor': html = letterEditorHTML(); break;
     case 'owner': html = ownerStudioHTML(); break;
@@ -561,6 +572,24 @@ function afterRender(view) {
   } else {
     unmountMoonIcon();
     unmountMoonSky();
+  }
+  if (view === 'voicenotes' && state.voiceNoteViewingId) {
+    const data = (state.isRecipient && state.recipient.data) ? state.recipient.data : state.owner.data;
+    const note = (data.voiceNotes || []).find(n => n.id === state.voiceNoteViewingId);
+    if (note && note.photos && note.photos.length > 1) {
+      if (voiceNoteSlideshowNoteId !== note.id) {
+        stopVoiceNoteSlideshow();
+        voiceNoteSlideshowNoteId = note.id;
+        voiceNoteSlideshowTimer = setInterval(() => {
+          state.voiceNotePlayer.photoIndex = (state.voiceNotePlayer.photoIndex + 1) % note.photos.length;
+          render();
+        }, 3500);
+      }
+    } else {
+      stopVoiceNoteSlideshow();
+    }
+  } else {
+    stopVoiceNoteSlideshow();
   }
   // Month-theme animated background — app-wide, but not on Moon Chat (it has
   // its own independent sky system). Safe to call every render: it no-ops
@@ -2050,6 +2079,148 @@ function memoryMapViewHTML() {
   </div>`;
 }
 
+// ── Voice Notes (photo slideshow + a recorded voice note, like a little
+// audio postcard) ───────────────────────────────────────────────────────
+// Deterministic "waveform" bar heights derived from the note's id, so the
+// same note always draws the same shape instead of jittering on re-render.
+function seededWaveHeights(seed, count) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const heights = [];
+  for (let i = 0; i < count; i++) {
+    h = (h * 1103515245 + 12345) >>> 0;
+    heights.push(16 + (h % 1000) / 1000 * 26);
+  }
+  return heights;
+}
+function waveformHTML(id) {
+  const heights = seededWaveHeights(id, 42);
+  return `<div style="flex:1;display:flex;align-items:center;gap:2px;height:38px;min-width:0;">
+    ${heights.map((h, i) => `<div class="wave-bar" data-action="voicenote-seek" data-idx="${i}"
+      style="flex:1;height:${h.toFixed(1)}px;min-width:2px;border-radius:2px;background:rgba(178,200,237,0.25);cursor:pointer;"></div>`).join('')}
+  </div>`;
+}
+// Shared by the owner's preview and Panther's real view — a card with the
+// photo (or slideshow, if more than one) up top and a playable waveform
+// below it. The photo auto-advances via a timer set up in afterRender();
+// the audio element itself lives outside #root (see getVoiceNoteAudio())
+// so playback survives that timer's re-renders instead of restarting.
+function voiceNotePostcardHTML(note, editable) {
+  const photos = note.photos || [];
+  const idx = photos.length ? state.voiceNotePlayer.photoIndex % photos.length : 0;
+  const playing = state.voiceNotePlayer.playing;
+  return `
+  <div data-action="voicenote-close-detail" style="position:fixed;inset:0;z-index:60;background:rgba(0,8,20,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div data-action="stop" class="glass-gold" style="border-radius:28px;padding:18px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:10px;">
+        <div style="min-width:0;">
+          <p class="font-mono" style="font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;">${esc(formatEntryDate(note.createdAt))}</p>
+          <h3 class="font-serif" style="font-size:20px;color:#ffddb0;margin-top:2px;">${esc(note.title || 'A voice note')}</h3>
+        </div>
+        <button data-action="voicenote-close-detail" style="width:30px;height:30px;border-radius:50%;background:rgba(178,200,237,0.08);border:1px solid rgba(178,200,237,0.15);cursor:pointer;color:#b2c8ed;flex-shrink:0;">✕</button>
+      </div>
+      ${photos.length ? `
+        <div style="position:relative;width:100%;aspect-ratio:4/3;border-radius:20px;overflow:hidden;background:#000;margin-bottom:10px;">
+          <img src="${esc(photos[idx])}" ${IMG_ERROR_ATTR} style="width:100%;height:100%;object-fit:cover;display:block;animation:fadeIn 0.5s ease-out;" />
+        </div>
+        ${photos.length > 1 ? `<div style="display:flex;justify-content:center;gap:5px;margin-bottom:14px;">
+          ${photos.map((_, i) => `<div style="width:${i === idx ? 16 : 6}px;height:6px;border-radius:3px;background:${i === idx ? 'var(--accent)' : 'rgba(178,200,237,0.25)'};transition:all 0.2s;"></div>`).join('')}
+        </div>` : `<div style="margin-bottom:14px;"></div>`}
+      ` : ''}
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(0,13,32,0.5);border-radius:16px;padding:10px 14px;margin-bottom:${editable ? '14px' : '0'};">
+        <button data-action="voicenote-toggle-play" style="width:38px;height:38px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;color:#000d20;font-size:15px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">${playing ? '⏸' : '▶'}</button>
+        ${waveformHTML(note.id)}
+      </div>
+      ${editable ? `<button data-action="voicenote-delete" data-id="${esc(note.id)}" class="font-mono" style="width:100%;padding:10px 0;border-radius:14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer;font-size:12px;">🗑 Delete this voice note</button>` : ''}
+    </div>
+  </div>`;
+}
+function voiceNoteCardThumbHTML(note) {
+  const cover = note.photos && note.photos[0];
+  return `
+    <button data-action="voicenote-open" data-id="${esc(note.id)}" class="font-mono" style="text-align:left;border:none;cursor:pointer;padding:0;border-radius:20px;overflow:hidden;background:rgba(0,13,32,0.5);position:relative;aspect-ratio:1/1;">
+      ${cover ? `<img src="${esc(cover)}" ${IMG_ERROR_ATTR} style="width:100%;height:100%;object-fit:cover;display:block;" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;">🎙️</div>`}
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(0,8,20,0.85) 100%);"></div>
+      <div style="position:absolute;left:10px;right:10px;bottom:8px;">
+        <p style="font-size:12px;color:white;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(note.title || 'A voice note')}</p>
+        ${note.photos && note.photos.length > 1 ? `<p style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:1px;">${note.photos.length} photos</p>` : ''}
+      </div>
+    </button>`;
+}
+function voiceNoteBuilderHTML() {
+  const data = state.owner.data;
+  const notes = data.voiceNotes || [];
+  const d = state.voiceNoteDraft;
+  const viewing = state.voiceNoteViewingId ? notes.find(n => n.id === state.voiceNoteViewingId) : null;
+  const canSave = d.photos.length > 0 && !!d.audioUrl;
+  return `
+  <div style="${PAGE_STYLE}">
+    ${skyBackdropHTML(data.theme)}
+    <div style="${INNER_STYLE}">
+      <div style="padding-top:24px;padding-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.18em;margin-bottom:4px;">A little audio postcard</p>
+          <h1 class="font-serif" style="font-size:26px;font-weight:700;color:white;">Voice Notes 🎙️</h1>
+          <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">${notes.length} saved</p>
+        </div>
+        <button data-action="voicenotes-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
+      </div>
+
+      <div class="glass-gold" style="border-radius:24px;padding:22px;margin-bottom:20px;">
+        <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">New voice note</p>
+        <input type="text" value="${esc(d.title)}" data-scope="voiceNoteDraft" data-field="title" placeholder="Give it a title..." class="font-serif" style="${OWNER_INPUT_STYLE}margin-bottom:12px;" />
+
+        ${d.photos.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          ${d.photos.map((url, i) => `
+            <div style="position:relative;width:64px;height:64px;border-radius:12px;overflow:hidden;">
+              <img src="${esc(url)}" ${IMG_ERROR_ATTR} style="width:100%;height:100%;object-fit:cover;display:block;" />
+              <button data-action="voicenote-remove-photo" data-idx="${i}" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.6);border:none;color:white;font-size:10px;cursor:pointer;line-height:1;">✕</button>
+            </div>`).join('')}
+        </div>` : ''}
+        <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 0;border-radius:14px;border:1px dashed rgba(var(--accent-rgb),0.35);color:${state.voiceNotePhotoUploading ? 'rgba(var(--accent-rgb),0.5)' : 'var(--accent)'};font-size:13px;cursor:${state.voiceNotePhotoUploading ? 'default' : 'pointer'};margin-bottom:12px;">
+          ${state.voiceNotePhotoUploading ? '⏳ Uploading...' : '📷 Add photo(s) — pick several for a slideshow'}
+          <input type="file" accept="image/*" multiple style="display:none;" data-action="voicenote-photo-file" ${state.voiceNotePhotoUploading ? 'disabled' : ''} />
+        </label>
+
+        ${d.audioUrl ? `<audio controls src="${esc(d.audioUrl)}" style="width:100%;height:32px;margin-bottom:10px;"></audio>` : ''}
+        <label class="font-mono" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 0;border-radius:14px;border:1px dashed rgba(var(--accent-rgb),0.35);color:${state.voiceNoteAudioUploading ? 'rgba(var(--accent-rgb),0.5)' : 'var(--accent)'};font-size:13px;cursor:${state.voiceNoteAudioUploading ? 'default' : 'pointer'};margin-bottom:14px;">
+          ${state.voiceNoteAudioUploading ? '⏳ Uploading...' : (d.audioUrl ? '🎙️ Change voice recording' : '🎙️ Add a voice recording')}
+          <input type="file" accept="audio/*" style="display:none;" data-action="voicenote-audio-file" ${state.voiceNoteAudioUploading ? 'disabled' : ''} />
+        </label>
+        <button data-action="voicenote-save" ${canSave ? '' : 'disabled'} class="btn-gold font-mono" style="width:100%;padding:12px 0;border-radius:16px;border:none;cursor:${canSave ? 'pointer' : 'not-allowed'};font-size:13px;opacity:${canSave ? 1 : 0.5};">Save Voice Note</button>
+      </div>
+
+      ${notes.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        ${notes.slice().reverse().map(voiceNoteCardThumbHTML).join('')}
+      </div>` : emptyStateHTML('No voice notes yet — add photos and a recording above', '🎙️')}
+    </div>
+  </div>${viewing ? voiceNotePostcardHTML(viewing, true) : ''}`;
+}
+function voiceNoteListViewHTML() {
+  const data = state.recipient.data;
+  const notes = data.voiceNotes || [];
+  const viewing = state.voiceNoteViewingId ? notes.find(n => n.id === state.voiceNoteViewingId) : null;
+  return `
+  <div style="${PAGE_STYLE}">
+    ${skyBackdropHTML(data.theme)}
+    <div style="${INNER_STYLE}">
+      <div style="padding-top:24px;padding-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.18em;margin-bottom:4px;">A little audio postcard</p>
+          <h1 class="font-serif" style="font-size:26px;font-weight:700;color:white;">Voice Notes 🎙️</h1>
+          <p class="font-mono" style="font-size:11px;color:rgba(178,200,237,0.45);margin-top:2px;">From your Dino 🦖</p>
+        </div>
+        <button data-action="voicenotes-close" style="width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;">✕</button>
+      </div>
+      ${notes.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding-bottom:90px;">
+        ${notes.slice().reverse().map(voiceNoteCardThumbHTML).join('')}
+      </div>` : emptyStateHTML('No voice notes yet...', '🎙️')}
+    </div>
+    ${viewing ? voiceNotePostcardHTML(viewing, false) : ''}
+    ${recipientNavHTML(data, 'voicenotes')}
+  </div>`;
+}
+
 // ── Collection ───────────────────────────────────────────────────────────
 // A read-only, chronological feed pulling together everything that's been
 // sent — letters, photos, moon-chat lines, mixtape songs, memory-map pins,
@@ -2107,6 +2278,17 @@ function buildCollectionEntries(data) {
       date: pn.date || formatEntryDate(pn.createdAt), ts: pn.createdAt || 0,
     });
   });
+  (data.voiceNotes || []).forEach(vn => {
+    const media = [...(vn.photos || []).map(u => ({ type: 'image', url: u }))];
+    if (vn.audioUrl) media.push({ type: 'audio', url: vn.audioUrl });
+    entries.push({
+      kind: 'voicenote', id: vn.id,
+      icon: '🎙️', title: vn.title || 'A voice note',
+      sub: vn.photos && vn.photos.length ? `${vn.photos.length} photo${vn.photos.length === 1 ? '' : 's'}` : null,
+      media,
+      date: formatEntryDate(vn.createdAt), ts: vn.createdAt || 0,
+    });
+  });
   if (data.bouquet && data.bouquet.flowers && data.bouquet.flowers.length) {
     entries.push({
       kind: 'bouquet', id: 'bouquet',
@@ -2130,6 +2312,7 @@ async function deleteCollectionEntry(kind, id) {
   if (kind === 'moon') return moonDelete(id);
   if (kind === 'song') return removeMixtapeSong(state.owner.data.mixtape.songs.findIndex(s => s.id === id));
   if (kind === 'pin') return deleteMemoryPin(id);
+  if (kind === 'voicenote') return deleteVoiceNote(id);
   if (kind === 'bouquet') return persist({ ...state.owner.data, bouquet: { ...state.owner.data.bouquet, flowers: [], note: '', updatedAt: new Date().toISOString() } });
 }
 function collectionHTML() {
@@ -2484,7 +2667,7 @@ function ownerStudioHTML() {
       </div>
       <div class="glass-gold" style="border-radius:24px;padding:24px;">
         <p class="font-mono" style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:14px;">Screens shown to Panther</p>
-        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['bouquet', 'Bouquet'], ['mixtape', 'Mixtape'], ['memorymap', 'Memory Map'], ['moon', 'Talk to Moon']].map(([t, label]) => `
+        ${[['letters', 'Letters'], ['gallery', 'Gallery'], ['voicenotes', 'Voice Notes'], ['bouquet', 'Bouquet'], ['mixtape', 'Mixtape'], ['memorymap', 'Memory Map'], ['moon', 'Talk to Moon']].map(([t, label]) => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(178,200,237,0.06);">
             <span class="font-mono" style="font-size:13px;color:#b2c8ed;">${label}</span>
             <label class="toggle-wrap">
@@ -2705,6 +2888,61 @@ async function deleteMemoryPin(id) {
   state.memoryMapViewingId = null;
   await persist({ ...state.owner.data, memoryMap: { ...mm, pins: mm.pins.filter(p => p.id !== id) } });
 }
+// The <audio> element lives outside #root, created once and reused, so the
+// periodic re-renders that drive the photo slideshow (see afterRender())
+// don't tear it down and restart playback from 0 every few seconds.
+let voiceNoteAudioEl = null;
+function getVoiceNoteAudio() {
+  if (!voiceNoteAudioEl) {
+    voiceNoteAudioEl = document.createElement('audio');
+    voiceNoteAudioEl.id = 'voicenote-audio-player';
+    voiceNoteAudioEl.style.display = 'none';
+    document.body.appendChild(voiceNoteAudioEl);
+    voiceNoteAudioEl.addEventListener('timeupdate', () => {
+      if (!voiceNoteAudioEl.duration) return;
+      const frac = voiceNoteAudioEl.currentTime / voiceNoteAudioEl.duration;
+      const bars = root.querySelectorAll('.wave-bar');
+      bars.forEach((b, i) => {
+        const barFrac = bars.length > 1 ? i / (bars.length - 1) : 0;
+        b.style.background = barFrac <= frac ? 'var(--accent)' : 'rgba(178,200,237,0.25)';
+      });
+    });
+    voiceNoteAudioEl.addEventListener('ended', () => {
+      state.voiceNotePlayer.playing = false;
+      render();
+    });
+  }
+  return voiceNoteAudioEl;
+}
+let voiceNoteSlideshowTimer = null;
+let voiceNoteSlideshowNoteId = null;
+function stopVoiceNoteSlideshow() {
+  if (voiceNoteSlideshowTimer) { clearInterval(voiceNoteSlideshowTimer); voiceNoteSlideshowTimer = null; }
+  voiceNoteSlideshowNoteId = null;
+}
+async function saveVoiceNote() {
+  const d = state.voiceNoteDraft;
+  if (!d.photos.length || !d.audioUrl) return;
+  const note = {
+    id: `voicenote-${Date.now()}`,
+    title: (d.title || '').trim() || 'A voice note',
+    photos: [...d.photos],
+    audioUrl: d.audioUrl,
+    createdAt: new Date().toISOString(),
+  };
+  state.voiceNoteDraft = { title: '', photos: [], audioUrl: '' };
+  const vn = state.owner.data.voiceNotes;
+  await persist({ ...state.owner.data, voiceNotes: [...vn, note] });
+}
+async function deleteVoiceNote(id) {
+  if (state.voiceNoteViewingId === id) {
+    stopVoiceNoteSlideshow();
+    getVoiceNoteAudio().pause();
+    state.voiceNoteViewingId = null;
+  }
+  const vn = state.owner.data.voiceNotes;
+  await persist({ ...state.owner.data, voiceNotes: vn.filter(n => n.id !== id) });
+}
 function copyLink() {
   navigator.clipboard.writeText(shareUrl());
   state.owner.copied = true; render();
@@ -2912,6 +3150,7 @@ function handleClick(e) {
     case 'bouquet-close':
     case 'mixtape-close':
     case 'memorymap-close':
+    case 'voicenotes-close':
       if (state.isRecipient && state.recipient.data) state.recipient.tab = 'collection';
       else state.owner.tab = 'home';
       render();
@@ -2974,6 +3213,46 @@ function handleClick(e) {
     case 'memorymap-delete-pin':
       if (window.confirm('Delete this memory?')) deleteMemoryPin(el.dataset.id);
       break;
+    case 'voicenote-remove-photo':
+      state.voiceNoteDraft.photos.splice(Number(el.dataset.idx), 1);
+      render();
+      break;
+    case 'voicenote-save': saveVoiceNote(); break;
+    case 'voicenote-open': {
+      const list = ((state.isRecipient && state.recipient.data) ? state.recipient.data : state.owner.data).voiceNotes;
+      const note = list.find(n => n.id === el.dataset.id);
+      state.voiceNoteViewingId = el.dataset.id;
+      state.voiceNotePlayer = { playing: false, photoIndex: 0 };
+      const audio = getVoiceNoteAudio();
+      audio.pause();
+      audio.src = note ? note.audioUrl : '';
+      render();
+      break;
+    }
+    case 'voicenote-close-detail':
+      stopVoiceNoteSlideshow();
+      getVoiceNoteAudio().pause();
+      state.voiceNoteViewingId = null;
+      state.voiceNotePlayer.playing = false;
+      render();
+      break;
+    case 'voicenote-toggle-play': {
+      const audio = getVoiceNoteAudio();
+      if (state.voiceNotePlayer.playing) { audio.pause(); state.voiceNotePlayer.playing = false; }
+      else { audio.play().catch(() => {}); state.voiceNotePlayer.playing = true; }
+      render();
+      break;
+    }
+    case 'voicenote-seek': {
+      const audio = getVoiceNoteAudio();
+      const bars = root.querySelectorAll('.wave-bar');
+      const idx = Number(el.dataset.idx);
+      if (audio.duration && bars.length > 1) audio.currentTime = (idx / (bars.length - 1)) * audio.duration;
+      break;
+    }
+    case 'voicenote-delete':
+      if (window.confirm('Delete this voice note?')) deleteVoiceNote(el.dataset.id);
+      break;
     case 'recipient-retry': window.location.reload(); break;
   }
 }
@@ -2992,6 +3271,7 @@ function handleInput(e) {
     : scope === 'mixtapeForm' ? state.mixtapeForm
     : scope === 'memoryMapDraft' ? state.memoryMapDraft
     : scope === 'recipientPinForm' ? state.recipientPinForm
+    : scope === 'voiceNoteDraft' ? state.voiceNoteDraft
     : null;
   if (target) target[field] = t.value;
   // keep the add buttons' disabled state in sync without a full re-render
@@ -3128,6 +3408,39 @@ function handleChange(e) {
       })
       .finally(() => {
         state.memoryMapUploading = false;
+        render();
+      });
+  } else if (action === 'voicenote-photo-file') {
+    const files = el.files ? Array.from(el.files) : [];
+    if (!files.length) return;
+    state.voiceNotePhotoUploading = true;
+    render();
+    (async () => {
+      for (const file of files) {
+        try {
+          const url = await uploadVoiceNotePhoto(file);
+          state.voiceNoteDraft.photos.push(url);
+        } catch (err) {
+          console.error('❌ Voice note photo upload error:', err);
+          window.alert('Photo upload failed: ' + (err && err.message ? err.message : 'please try again.'));
+        }
+      }
+      state.voiceNotePhotoUploading = false;
+      render();
+    })();
+  } else if (action === 'voicenote-audio-file') {
+    const file = el.files && el.files[0];
+    if (!file) return;
+    state.voiceNoteAudioUploading = true;
+    render();
+    uploadVoiceNoteAudio(file)
+      .then(url => { state.voiceNoteDraft.audioUrl = url; })
+      .catch(err => {
+        console.error('❌ Voice note audio upload error:', err);
+        window.alert('Voice note upload failed: ' + (err && err.message ? err.message : 'please try again.'));
+      })
+      .finally(() => {
+        state.voiceNoteAudioUploading = false;
         render();
       });
   }

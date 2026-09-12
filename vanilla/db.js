@@ -96,6 +96,14 @@ export async function uploadGalleryPhoto(file) {
   return uploadToCloudinary(file);
 }
 
+export async function uploadVoiceNotePhoto(file) {
+  return uploadToCloudinary(file);
+}
+
+export async function uploadVoiceNoteAudio(file) {
+  return uploadToCloudinary(file);
+}
+
 export async function saveData(data) {
   try {
     await setDoc(doc(db, 'forpanther', DOC_ID), {
