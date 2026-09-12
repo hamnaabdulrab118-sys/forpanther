@@ -198,4 +198,4 @@ button, input, textarea { font-family: inherit; }
 @keyframes particleFloat { 0%, 100% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-18px) translateX(10px); } }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 @keyframes bloomIn { from { transform: scale(0) rotate(-20deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }
-@keyframes flowerSway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes flowerSway { 0%, 100% { transform: rotate(-7deg) translateY(0); } 50% { transform: rotate(7deg) translateY(-4px); } }

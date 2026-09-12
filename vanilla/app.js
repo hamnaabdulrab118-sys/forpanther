@@ -794,20 +794,67 @@ function recipientViewHTML() {
 }
 
 // ── Envelope grid / letter modal ────────────────────────────────────────
+// A little painted-postage stamp — reused as filler on the tucked-in
+// envelope, drawn plain rather than through flowerSVG since it's meant to
+// read as a stamp, not a bloom.
+function letterStampSVG(color) {
+  return `<svg width="18" height="18" viewBox="0 0 18 18" style="overflow:visible;display:block;">
+    <rect x="0.5" y="0.5" width="17" height="17" rx="1.5" fill="#fbf5e6" stroke="${color}" stroke-width="0.7" stroke-dasharray="1.6 1.3" />
+    <circle cx="9" cy="9" r="4.2" fill="${color}" opacity="0.55" />
+  </svg>`;
+}
+// A little painted scene — a mailbox with roses climbing it and an
+// envelope tucked at its base — standing in for the plain flat envelope
+// that used to be the letter thumbnail. Built from the same painterly
+// rose/leaf illustrations used on the Bouquet, tinted to match each
+// letter's own envelope color instead of copied wholesale from a
+// reference image.
+function letterMailboxSceneHTML(c) {
+  // Roses stay a true rose-pink regardless of the letter's own envelope
+  // color (gold/sky/sage/lavender...) — tinting them to match made them
+  // blend into the mailbox instead of reading as flowers.
+  const roseDef = { id: 'rose', petalColor: '#fb7185', centerColor: '#e11d48' };
+  const leafColor = '#5a8a4a';
+  return `
+  <svg viewBox="0 0 300 174" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%;">
+    <defs>
+      <radialGradient id="letterGlow" cx="50%" cy="28%" r="65%">
+        <stop offset="0%" stop-color="${c.border}" stop-opacity="0.18" />
+        <stop offset="100%" stop-color="${c.border}" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="300" height="174" fill="${c.envelope}" />
+    <rect x="0" y="0" width="300" height="174" fill="url(#letterGlow)" />
+    <ellipse cx="150" cy="152" rx="132" ry="13" fill="#000000" opacity="0.28" />
+
+    <rect x="141" y="86" width="8" height="62" fill="${shadeColor(c.envelope, 55)}" />
+    <path d="M118 56 a27 27 0 0 1 54 0 v34 h-54 z" fill="#f4ede0" stroke="${c.border}" stroke-width="1.6" />
+    <rect x="112" y="88" width="66" height="7" rx="3" fill="#f4ede0" stroke="${c.border}" stroke-width="1.2" />
+    <rect x="160" y="60" width="10" height="15" rx="2" fill="${c.wax}" transform="rotate(20 165 67)" />
+
+    <g transform="translate(90,86) scale(0.75)">${leafSVG(24, leafColor)}</g>
+    <g transform="translate(182,92) scale(0.7) rotate(205 12 21)">${leafSVG(24, leafColor)}</g>
+    <g transform="translate(78,62)">${flowerSVG(roseDef, 32)}</g>
+    <g transform="translate(184,72)">${flowerSVG(roseDef, 26)}</g>
+
+    <g transform="translate(70,118) rotate(-5)">
+      <rect x="0" y="0" width="118" height="46" rx="3" fill="#fbf5e6" stroke="${c.border}" stroke-width="1.4" />
+      <polygon points="0,0 59,26 118,0" fill="none" stroke="${c.border}" stroke-width="1" opacity="0.55" />
+      <circle cx="20" cy="33" r="9" fill="${c.wax}" opacity="0.92" />
+      <text x="20" y="37" text-anchor="middle" font-size="9" fill="white" opacity="0.95">🐾</text>
+      <g transform="translate(88,6)">${letterStampSVG(c.border)}</g>
+      <g transform="translate(88,24)">${letterStampSVG(c.border)}</g>
+    </g>
+    <g transform="translate(58,138) scale(0.55)">${flowerSVG(roseDef, 22)}</g>
+  </svg>`;
+}
 function envelopeCardHTML(letter, isOwner) {
   const c = ENVELOPE_CARD_COLORS[letter.envelopeColor] || ENVELOPE_CARD_COLORS.gold;
   return `
   <div style="position:relative;">
     <button data-action="open-letter" data-id="${esc(letter.id)}" class="envelope-card" style="width:100%;text-align:left;cursor:pointer;border:none;padding:0;border-radius:24px;overflow:hidden;background:${c.envelope};outline:1px solid ${c.border}33;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
       <div style="position:relative;padding-top:58%;">
-        <svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 300 174" preserveAspectRatio="none">
-          <rect x="0" y="0" width="300" height="174" fill="${c.envelope}" />
-          <polygon points="0,0 0,174 140,87" fill="${c.border}12" />
-          <polygon points="300,0 300,174 160,87" fill="${c.border}12" />
-          <polygon points="0,0 300,0 150,95" fill="${c.border}18" stroke="${c.border}40" stroke-width="1" />
-          <circle cx="150" cy="97" r="26" fill="${c.wax}" opacity="0.92" />
-          <text x="150" y="105" text-anchor="middle" font-size="20" fill="white" opacity="0.95">🐾</text>
-        </svg>
+        ${letterMailboxSceneHTML(c)}
         <div class="envelope-shimmer" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%, ${c.border}14 0%, transparent 65%);opacity:0;transition:opacity .3s;pointer-events:none;"></div>
       </div>
       <div style="padding:14px 18px 18px;">
@@ -1330,10 +1377,17 @@ function shadeColor(hex, percent) {
 let svgUid = 0;
 
 function roundPetalPath(cx, cy, len, width) {
+  // Blunted tip (a tiny rounded curve instead of the two side curves meeting
+  // at a sharp point) so petals read as soft/rounded at small sizes instead
+  // of star-like.
   const tipY = (cy - len).toFixed(1);
+  const tipY2 = (cy - len * 0.94).toFixed(1);
+  const tipW = (width * 0.14).toFixed(1);
   const ctrlY = (cy - len * 0.55).toFixed(1);
   const baseY = (cy - len * 0.15).toFixed(1);
-  return `M ${cx} ${cy} C ${(cx - width).toFixed(1)} ${baseY}, ${(cx - width * 0.9).toFixed(1)} ${ctrlY}, ${cx} ${tipY} C ${(cx + width * 0.9).toFixed(1)} ${ctrlY}, ${(cx + width).toFixed(1)} ${baseY}, ${cx} ${cy} Z`;
+  return `M ${cx} ${cy} C ${(cx - width).toFixed(1)} ${baseY}, ${(cx - width * 0.9).toFixed(1)} ${ctrlY}, ${(cx - tipW)} ${tipY2}
+    Q ${cx} ${tipY} ${(cx + tipW)} ${tipY2}
+    C ${(cx + width * 0.9).toFixed(1)} ${ctrlY}, ${(cx + width).toFixed(1)} ${baseY}, ${cx} ${cy} Z`;
 }
 function pointedPetalPath(cx, cy, len, width) {
   const tipY = (cy - len).toFixed(1);
@@ -1491,19 +1545,23 @@ const FILLER_POSITIONS = [
   { x: 0, y: 40, size: 20 },
 ];
 
-// No paper wrap at all — real visible stems gathered into a bundle with a
-// sheer ribbon tied around them in a bow, the way editorial bouquet
-// photography actually looks (the previous kraft-paper cone read as a
-// cheap triangle, not a bouquet).
+// A rolled kraft-paper wrap with a folded cuff, soft crease lines, and a
+// ribbon bow tied around it — the earlier version dropped paper entirely
+// after a flat triangle read as cheap, but going stem-only lost the actual
+// "wrapped bouquet" look. This one fakes a rolled paper texture with a
+// gradient (light center seam, darker rolled edges) and a couple of
+// translucent crease strokes instead of a single flat fill.
 function leafShape(x, y, rot) {
   return `<path d="M0 0 C-14 -4 -18 -16 -8 -24 C2 -14 2 -4 0 0 Z" fill="#5a7a4a" opacity="0.88" transform="translate(${x} ${y}) rotate(${rot})" />`;
 }
 function wrappingSVG(wrapC) {
   const stemColor = '#5a7a4a';
-  const stemDark = '#3f5a35';
   const ribbon = wrapC.color;
   const ribbonLight = shadeColor(ribbon, 45);
   const ribbonDark = shadeColor(ribbon, -25);
+  const paper = '#dcbf8f';
+  const paperLight = '#f3e6c9';
+  const paperDark = '#a9825a';
   const uid = wrapC.id;
   const topXs = [55, 72, 89, 106, 123, 140, 157, 174];
   const gatherX = 110, gatherY = 92;
@@ -1512,10 +1570,20 @@ function wrappingSVG(wrapC) {
     return `<path d="M${x} 0 Q${midX} 20 ${gatherX} ${gatherY}" stroke="${stemColor}" stroke-width="2" fill="none" opacity="0.85" />`;
   }).join('');
   const leaves = leafShape(70, 55, -30) + leafShape(150, 60, 40) + leafShape(90, 40, -8);
-  const bundle = `<path d="M110 ${gatherY} C104 130 116 160 108 190" stroke="${stemDark}" stroke-width="7" fill="none" stroke-linecap="round" />
-    <path d="M110 ${gatherY} C104 130 116 160 108 190" stroke="${stemColor}" stroke-width="4" fill="none" stroke-linecap="round" />`;
-  const strayStems = `<path d="M96 ${gatherY} C90 135 82 165 76 188" stroke="${stemColor}" stroke-width="2" fill="none" opacity="0.8" />
-    <path d="M124 ${gatherY} C130 135 138 165 144 188" stroke="${stemColor}" stroke-width="2" fill="none" opacity="0.8" />`;
+  const paperCone = `
+    <path d="M52 62 C48 100 62 150 80 196 L140 196 C158 150 172 100 168 62
+             C150 74 130 80 110 80 C90 80 70 74 52 62 Z"
+      fill="url(#paperGrad-${uid})" stroke="${paperDark}" stroke-width="1.5" stroke-linejoin="round" />
+    <path d="M52 62 C70 74 90 80 110 80 C130 80 150 74 168 62
+             C172 68 173 76 168 82 C148 92 128 96 110 96 C92 96 72 92 52 82
+             C47 76 48 68 52 62 Z"
+      fill="${paperLight}" opacity="0.9" />
+    <path d="M78 92 C88 130 82 165 90 194" stroke="${paperDark}" stroke-width="1.1" fill="none" opacity="0.32" />
+    <path d="M142 92 C132 130 138 165 130 194" stroke="${paperDark}" stroke-width="1.1" fill="none" opacity="0.32" />
+    <path d="M62 70 C64 110 70 155 82 193" stroke="${paperDark}" stroke-width="0.8" fill="none" opacity="0.2" />
+    <path d="M158 70 C156 110 150 155 138 193" stroke="${paperDark}" stroke-width="0.8" fill="none" opacity="0.2" />
+    <path d="M110 88 L108 195" stroke="${paperLight}" stroke-width="14" fill="none" opacity="0.28" />
+  `;
   return `<svg width="100%" height="100%" viewBox="0 0 220 196" style="overflow:visible;display:block;">
     <defs>
       <linearGradient id="ribbonSheen-${uid}" x1="0" y1="0" x2="1" y2="1">
@@ -1523,12 +1591,18 @@ function wrappingSVG(wrapC) {
         <stop offset="50%" stop-color="${ribbon}" stop-opacity="0.55" />
         <stop offset="100%" stop-color="${ribbonDark}" stop-opacity="0.75" />
       </linearGradient>
+      <linearGradient id="paperGrad-${uid}" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="${paperDark}" />
+        <stop offset="18%" stop-color="${paper}" />
+        <stop offset="50%" stop-color="${paperLight}" />
+        <stop offset="82%" stop-color="${paper}" />
+        <stop offset="100%" stop-color="${paperDark}" />
+      </linearGradient>
     </defs>
 
     ${stems}
     ${leaves}
-    ${bundle}
-    ${strayStems}
+    ${paperCone}
 
     <path d="M74 ${gatherY - 14} Q110 ${gatherY - 24} 146 ${gatherY - 14} L146 ${gatherY + 16} Q110 ${gatherY + 26} 74 ${gatherY + 16} Z"
       fill="url(#ribbonSheen-${uid})" stroke="${ribbonDark}" stroke-width="1" opacity="0.95" />
@@ -1557,8 +1631,8 @@ function flowerClusterHTML(bouquet, editable) {
     const delay = (i % 6) * 0.35;
     return `<div ${editable ? `data-action="bouquet-remove-flower" data-index="${i}" title="Tap to remove"` : ''}
       style="position:absolute;left:calc(50% + ${pos.x}px);bottom:${160 - pos.y}px;transform:translateX(-50%) rotate(${pos.r}deg);z-index:2;${editable ? 'cursor:pointer;' : ''}">
-      <div style="animation:bloomIn 0.45s ease-out, flowerSway ${3.5 + (i % 3) * 0.4}s ease-in-out ${delay}s infinite;">
-        ${flowerSVG(f, 52)}
+      <div style="animation:bloomIn 0.45s ease-out, flowerSway ${3.5 + (i % 3) * 0.4}s ease-in-out ${delay}s infinite;filter:drop-shadow(0 6px 8px rgba(0,0,0,0.3));">
+        ${flowerSVG(f, 56)}
       </div>
     </div>`;
   }).join('');
